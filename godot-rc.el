@@ -10,6 +10,7 @@
 
 (require 'gdscript-mode)
 (require 's)
+
 (require 'godot-rc-core)
 (require 'tscn-mode)
 

@@ -4,9 +4,10 @@
 
 (require 'magit-section)
 (require 'evil)
-(require 'godot-rc-core)
 (require 'projectile)
 (require 'f)
+
+(require 'godot-rc-core)
 
 (defvar tscn-mode--scene-path nil)
 (defconst tscn--base-dir (file-name-directory (or load-file-name buffer-file-name)))
