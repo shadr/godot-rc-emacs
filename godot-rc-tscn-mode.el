@@ -47,7 +47,7 @@
   (interactive)
   (let ((node-id (magit-section-ident-value (magit-current-section)))
         (confirm (y-or-n-p "Delete node and its children?")))
-    (when confirm (godot-rc-request "remove-node" node-id))))
+    (when confirm (godot-rc-request "node-remove" node-id))))
 
 (defun godot-rc-tscn-add-node (parent-id index)
   (godot-rc-request-callback
@@ -75,7 +75,7 @@
   (interactive)
   (let ((current-section (magit-section-ident-value (magit-current-section)))
         (new-name (read-string "New name: ")))
-    (godot-rc-request "rename-node" `((id . ,current-section) (name . ,new-name)))))
+    (godot-rc-request "node-rename" `((id . ,current-section) (name . ,new-name)))))
 
 (defun godot-rc-tscn-change-node-type ()
   (interactive)
@@ -96,7 +96,7 @@
          (index (max (min (+ current-index offset) max-index) 0)))
     (unless (eq index current-index)
       (godot-rc-request-callback
-       "move-node"
+       "node-move"
        `((node . ,node-id) (parent . ,parent-id) (index . ,(+ current-index offset)) (silent . t))
        #'godot-rc--tscn-restore-point-after-node-move))))
 
@@ -117,7 +117,7 @@
              (parent-id (magit-section-ident-value prev-sibling))
              (index (length (oref prev-sibling children))))
         (godot-rc-request-callback
-         "move-node"
+         "node-move"
          `((node . ,node-id) (parent . ,parent-id) (index . ,index) (silent . t))
          #'godot-rc--tscn-restore-point-after-node-move)))))
 
@@ -131,7 +131,7 @@
              (parent-id (magit-section-ident-value (oref parent parent)))
              (current-parent-index (godot-rc--magit-section-index parent)))
         (godot-rc-request-callback
-         "move-node"
+         "node-move"
          `((node . ,node-id) (parent . ,parent-id) (index . ,(+ current-parent-index 1)) (silent . t))
          #'godot-rc--tscn-restore-point-after-node-move)))))
 
@@ -148,7 +148,7 @@
 
 (defun godot-rc-tscn-save-scene ()
   (interactive)
-  (godot-rc-request "save-scene"))
+  (godot-rc-request "scene-save"))
 
 (defun godot-rc--tscn-make-section (node)
   (let ((name (gethash "name" node))
@@ -211,7 +211,7 @@
       (with-current-buffer tscn-buffer
         (when (or (null path) (string-equal path godot-rc--tscn-scene-path))
           (godot-rc-request-callback
-           "get-scene-tree"
+           "scene-tree"
            godot-rc--tscn-scene-path
            (lambda (scene-tree)
              (with-current-buffer tscn-buffer
@@ -222,7 +222,7 @@
 
 (defun godot-rc-edit-scene (tscn-path)
   (godot-rc-request-callback
-   "get-scene-tree"
+   "scene-tree"
    tscn-path
    (lambda (tree)
      (godot-rc-tscn-open-scene tscn-path tree))))

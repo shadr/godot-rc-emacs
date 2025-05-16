@@ -17,7 +17,6 @@
 ;; TODO: add safe guards to all functions
 ;; TODO: feat: disable .tscn file hook with a variable
 ;; TODO: feat: save node as scene
-;; TODO: feat: duplicate node
 
 (require 'gdscript-mode)
 (require 's)
@@ -31,7 +30,7 @@
 (godot-rc-add-notification-handler "scene-changed" #'godot-rc--on-scene-changed)
 
 (defun godot-rc-reload-resource (path)
-  (godot-rc-request "reload-resource" path))
+  (godot-rc-request "resource-reload" path))
 
 ;;;###autoload
 (defun godot-rc-gdscript-insert-node-path-multiple ()
@@ -39,7 +38,7 @@
   (let ((tscn-path (gdscript-project--current-buffer-scene)))
     (if (eq tscn-path nil)
         (message "Current script is not associated with any scene")
-      (godot-rc-request-callback "insert-onready-variable" tscn-path #'godot-rc--read-node-name-and-insert))))
+      (godot-rc-request-callback "get-nodes-for-onready" tscn-path #'godot-rc--read-node-name-and-insert))))
 
 (defun godot-rc--gdscript-insert-onready-variable (node)
   (let* ((nodepath (car node))
@@ -74,7 +73,7 @@
 
 (defun godot-rc--create-new-scene-with-list-and-path (class-list path)
   (let* ((base_class (completing-read "Base: " class-list)) (name (read-string "Name: " base_class)))
-    (godot-rc-request "create-scene" `(:path ,path :base ,base_class :name ,name))))
+    (godot-rc-request "scene-new" `(:path ,path :base ,base_class :name ,name))))
 
 ;;;###autoload
 (defun godot-rc-edit-current-scene ()
@@ -88,10 +87,6 @@
     (kill-buffer (current-buffer))))
 
 (add-hook 'find-file-hook #'godot-rc--find-file-hook)
-
-(defun godot-rc--wip ()
-  (interactive)
-  (godot-rc-request "wip"))
 
 (provide 'godot-rc)
 ;;; godot-rc.el ends here
