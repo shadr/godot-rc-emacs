@@ -73,7 +73,8 @@
        (lambda (result) (godot-rc--create-new-scene-with-list-and-path result path))))))
 
 (defun godot-rc--create-new-scene-with-list-and-path (class-list path)
-  (let* ((base_class (completing-read "Base: " class-list)) (name (read-string "Name: " base_class)))
+  (let* ((base_class (condition-case nil (completing-read "Base: " class-list) (quit nil)))
+         (name (read-string "Name: " base_class)))
     (godot-rc-request "scene-new" `(:path ,path :base ,base_class :name ,name))))
 
 ;;;###autoload

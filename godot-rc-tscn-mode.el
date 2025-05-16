@@ -60,7 +60,7 @@
    "get-node-classes"
    nil
    (lambda (result)
-     (let ((type (completing-read "Node type: " result)))
+     (let ((type (condition-case nil (completing-read "Node type: " result) (quit nil))))
        (godot-rc-request "node-add" `((parent_id . ,parent-id) (index . ,index) (type . ,type)))))))
 
 (defun godot-rc-tscn-add-sibling-node ()
@@ -91,7 +91,7 @@
      "get-node-classes"
      nil
      (lambda (result)
-       (let ((new-type (completing-read "New type: " result)))
+       (let ((new-type (condition-case nil (completing-read "New type: " result) (quit nil))))
          (godot-rc-request "node-change-type" `((node_id . ,current-section) (new_type . ,new-type))))))))
 
 (defun godot-rc-tscn-move-node (offset)
