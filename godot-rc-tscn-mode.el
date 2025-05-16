@@ -43,8 +43,14 @@
   (interactive)
   (message (godot-rc--get-section-from-id (magit-section-ident-value (magit-current-section)))))
 
+(defun godot-rc--check-not-root (message)
+  (let ((current-id (magit-section-ident-value (magit-current-section)))
+        (root-id (magit-section-ident-value magit-root-section)))
+    (when (eq current-id root-id) (error message))))
+
 (defun godot-rc-tscn-delete-node ()
   (interactive)
+  (godot-rc--check-not-root "Can't delete root node")
   (let ((node-id (magit-section-ident-value (magit-current-section)))
         (confirm (y-or-n-p "Delete node and its children?")))
     (when confirm (godot-rc-request "node-remove" node-id))))
@@ -59,6 +65,7 @@
 
 (defun godot-rc-tscn-add-sibling-node ()
   (interactive)
+  (godot-rc--check-not-root "Can't add a sibling node to the root node")
   (let* ((section (magit-current-section))
          (parent-id (magit-section-ident-value (oref section parent)))
          (current-index (godot-rc--magit-section-index section)))
@@ -88,6 +95,7 @@
          (godot-rc-request "node-change-type" `((node_id . ,current-section) (new_type . ,new-type))))))))
 
 (defun godot-rc-tscn-move-node (offset)
+  (godot-rc--check-not-root "Can't move root node")
   (let* ((section (magit-current-section))
          (max-index (- (length (oref (oref section parent) children)) 1))
          (current-index (godot-rc--magit-section-index section))
@@ -110,6 +118,7 @@
 
 (defun godot-rc-tscn-move-node-in ()
   (interactive)
+  (godot-rc--check-not-root "Can't move root node")
   (let* ((section (magit-current-section))
          (prev-sibling (godot-rc--magit-section-previous-sibling section)))
     (when prev-sibling
@@ -123,6 +132,7 @@
 
 (defun godot-rc-tscn-move-node-out ()
   (interactive)
+  (godot-rc--check-not-root "Can't move root node")
   (let* ((section (magit-current-section))
          (depth (godot-rc--magit-section-depth section)))
     (when (> depth  1)
@@ -137,6 +147,7 @@
 
 (defun godot-rc-tscn-duplicate-node ()
   (interactive)
+  (godot-rc--check-not-root "Can't duplicate root node")
   (let ((node-id (magit-section-ident-value (magit-current-section))))
     (godot-rc-request "node-duplicate" node-id)))
 
@@ -196,7 +207,6 @@
   (erase-buffer)
   (godot-rc--tscn-make-section scene-tree))
 
-
 (defun godot-rc-tscn-open-scene (path scene-tree)
   (with-current-buffer (get-buffer-create "*tscn-edit*")
     (tscn-mode)
@@ -240,11 +250,6 @@
            (lambda (f) (string-suffix-p ".tscn" f))
            (projectile-current-project-files)))))
     (godot-rc-edit-scene (projectile-expand-root file))))
-
-(defun godot-rc--tscn-wip ()
-  (interactive)
-  (with-current-buffer (get-buffer "*tscn-edit*")
-    (message (length (magit-region-sections)))))
 
 (provide 'godot-rc-tscn-mode)
 ;;; godot-rc-tscn-mode.el ends here
