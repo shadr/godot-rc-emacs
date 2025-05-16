@@ -150,44 +150,47 @@
   (interactive)
   (godot-rc-request "scene-save"))
 
-(defun godot-rc--tscn-make-section (node)
+(defun godot-rc--tscn-make-section (node &optional root)
   (let ((name (gethash "name" node))
         (type (gethash "type" node))
         (id (gethash "id" node))
         (children (gethash "children" node '()))
         (scene-file-path (gethash "scene_absolute_path" node))
         (scene-res-file-path (gethash "scene_res_path" node))
-        (script-path (gethash "script_path" node)))
-    (magit-insert-section (magit-section id)
-      (magit-insert-heading
-        (make-string (* 2 (godot-rc--magit-section-depth magit-insert-section--current)) ?\s)
-        (let ((icon-path (f-join godot-rc--base-dir "godot-icons" (concat type ".svg"))))
-          (if (file-exists-p icon-path)
+        (script-path (gethash "script_path" node))
+        (owner (gethash "owner" node)))
+    ;; REVIEW: can root node in a response not have owner ?
+    (unless root (setq root id))
+    (when (or (eq root owner) (eq root id))
+      (magit-insert-section (magit-section id)
+        (magit-insert-heading
+          (make-string (* 2 (godot-rc--magit-section-depth magit-insert-section--current)) ?\s)
+          (let ((icon-path (f-join godot-rc--base-dir "godot-icons" (concat type ".svg"))))
+            (if (file-exists-p icon-path)
+                (propertize "@" 'display (create-image icon-path nil nil :ascent 'center))))
+          " "
+          name
+          " "
+          (propertize type 'face 'magit-dimmed)
+
+          (when (and scene-file-path (not (string-equal scene-file-path godot-rc--tscn-scene-path))) " ")
+          (when (and scene-file-path (not (string-equal scene-file-path godot-rc--tscn-scene-path)))
+            (let ((icon-path (f-join godot-rc--base-dir "godot-icons" "InstanceOptions.svg")))
               (propertize "@" 'display (create-image icon-path nil nil :ascent 'center))))
-        " "
-        name
-        " "
-        (propertize type 'face 'magit-dimmed)
 
-        (when (and scene-file-path (not (string-equal scene-file-path godot-rc--tscn-scene-path))) " ")
-        (when (and scene-file-path (not (string-equal scene-file-path godot-rc--tscn-scene-path)))
-          (let ((icon-path (f-join godot-rc--base-dir "godot-icons" "InstanceOptions.svg")))
-            (propertize "@" 'display (create-image icon-path nil nil :ascent 'center))))
+          (when scene-file-path " ")
+          (when scene-file-path
+            (propertize scene-res-file-path 'face 'magit-dimmed))
 
-        (when scene-file-path " ")
-        (when scene-file-path
-          (propertize scene-res-file-path 'face 'magit-dimmed))
-
-        (when script-path " ")
-        (when script-path
-          (let ((icon-path (f-join godot-rc--base-dir "godot-icons" "Script.svg")))
-            (propertize "@" 'display (create-image icon-path nil nil :ascent 'center))))
-        (when script-path " ")
-        (when script-path
-          (propertize script-path 'face 'magit-dimmed)))
-      (unless (and scene-file-path (not (string-equal scene-file-path godot-rc--tscn-scene-path)))
+          (when script-path " ")
+          (when script-path
+            (let ((icon-path (f-join godot-rc--base-dir "godot-icons" "Script.svg")))
+              (propertize "@" 'display (create-image icon-path nil nil :ascent 'center))))
+          (when script-path " ")
+          (when script-path
+            (propertize script-path 'face 'magit-dimmed)))
         (dolist (child children)
-          (godot-rc--tscn-make-section child))))))
+          (godot-rc--tscn-make-section child root))))))
 
 (defun godot-rc--tscn-insert-sections (scene-tree)
   (erase-buffer)

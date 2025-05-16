@@ -17,6 +17,7 @@
 ;; TODO: add safe guards to all functions
 ;; TODO: feat: disable .tscn file hook with a variable
 ;; TODO: feat: save node as scene
+;; TODO: feat: show editable nodes under scene instance
 
 (require 'gdscript-mode)
 (require 's)
