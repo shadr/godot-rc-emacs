@@ -4,6 +4,8 @@
 
 (require 'websocket)
 
+(defconst godot-rc--base-dir (file-name-directory (or load-file-name buffer-file-name)))
+
 (defvar godot-rc--socket nil)
 (defvar godot-rc--response-id 0)
 (defvar godot-rc--response-callbacks (make-hash-table))

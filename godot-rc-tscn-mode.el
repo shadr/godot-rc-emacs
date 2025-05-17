@@ -20,7 +20,6 @@
 (require 'godot-rc-utils)
 
 (defvar godot-rc--tscn-scene-path nil)
-(defconst godot-rc--base-dir (file-name-directory (or load-file-name buffer-file-name)))
 
 ;;;###autoload
 (define-derived-mode tscn-mode magit-section-mode "TSCN"
@@ -37,11 +36,7 @@
   (evil-define-key 'normal tscn-mode-map (kbd "C-k") #'godot-rc-tscn-move-node-up)
   (evil-define-key 'normal tscn-mode-map (kbd "C-l") #'godot-rc-tscn-move-node-in)
   (evil-define-key 'normal tscn-mode-map (kbd "C-h") #'godot-rc-tscn-move-node-out)
-  (evil-define-key 'normal tscn-mode-map (kbd "RET") #'godot-rc--something))
-
-(defun godot-rc--something ()
-  (interactive)
-  (message (godot-rc--get-section-from-id (magit-section-ident-value (magit-current-section)))))
+  (evil-define-key 'normal tscn-mode-map (kbd "RET") #'godot-rc-node-open-inspector))
 
 (defun godot-rc--check-not-root (message)
   (let ((current-id (magit-section-ident-value (magit-current-section)))

@@ -18,12 +18,15 @@
 ;; TODO: feat: disable .tscn file hook with a variable
 ;; TODO: feat: save node as scene
 ;; TODO: feat: show editable nodes under scene instance
+;; TODO: consider using transient
 
 (require 'gdscript-mode)
 (require 's)
 
 (require 'godot-rc-core)
 (require 'godot-rc-tscn-mode)
+(require 'godot-rc-inspector)
+
 
 (defun godot-rc--on-scene-changed (path)
   (godot-rc-tscn-refresh-buffer path))
