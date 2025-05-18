@@ -161,8 +161,8 @@
 (define-derived-mode inspector-mode magit-section-mode "INSPECTOR"
   (evil-define-key 'normal inspector-mode-map (kbd "R") #'godot-rc-inspector-refresh-buffer))
 
-(defun godot-rc--get-node-properties (object-id callback)
-  (godot-rc-request-callback "node-properties" `((node_id . ,object-id) (opened_props . ())) callback))
+(defun godot-rc--get-object-properties (object-id callback)
+  (godot-rc-request-callback "object-properties" `((object_id . ,object-id) (opened_props . ())) callback))
 
 (defun godot-rc-node-open-inspector ()
   (interactive)
@@ -172,7 +172,7 @@
 (defun godot-rc-inspector-refresh-buffer ()
   (interactive)
   (with-current-buffer (get-buffer "*inspector*")
-    (godot-rc--get-node-properties
+    (godot-rc--get-object-properties
      godot-rc--inspector-object-id
      (lambda (data)
        (with-current-buffer (get-buffer "*inspector*")
@@ -182,7 +182,7 @@
            (goto-char p)))))))
 
 (defun godot-rc--open-inspector (object-id)
-  (godot-rc--get-node-properties
+  (godot-rc--get-object-properties
    object-id
    (lambda (data)
      (with-current-buffer (get-buffer-create "*inspector*")
