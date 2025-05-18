@@ -243,6 +243,7 @@
     (pcase type
       ((guard (eq type godot-rc--variant-type-bool)) (godot-rc--inspector-insert-bool-property))
       ((guard (eq type godot-rc--variant-type-int)) (godot-rc--inspector-insert-int-property))
+      ((guard (eq type godot-rc--variant-type-float)) (godot-rc--inspector-insert-float-property))
       ((guard (eq type godot-rc--variant-type-vector2)) (godot-rc--inspector-insert-vector2-property))
       ((guard (eq type godot-rc--variant-type-vector3)) (godot-rc--inspector-insert-vector3-property))
       ((guard (eq type godot-rc--variant-type-vector4)) (godot-rc--inspector-insert-vector4-property))
@@ -410,6 +411,29 @@
       (if (string-equal godot-rc--inspector-property-value "") "EMPTY" godot-rc--inspector-property-value)
       'face 'underline
       'keymap godot-rc--inspector-string-keymap))
+    (insert "\n")))
+
+(defvar godot-rc--inspector-float-keymap
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "c") #'godot-rc--inspector-float-change)
+    map))
+
+(defun godot-rc--inspector-float-change ()
+  (interactive)
+  (let* ((property-name (get-text-property (point) 'property-name))
+         (new-value (read-number (concat "New value for " property-name ": "))))
+    (godot-rc-request
+     "inspector-change-property"
+     `((object_id . ,godot-rc--inspector-object-id)
+       (value . ,new-value)
+       (property . ,property-name)))))
+
+(defun godot-rc--inspector-insert-float-property ()
+  (magit-insert-section-body
+    (godot-rc--inspector-insert-visible-name)
+    (insert (propertize (number-to-string godot-rc--inspector-property-value)
+                        'face 'underline
+                        'keymap godot-rc--inspector-float-keymap))
     (insert "\n")))
 
 (defun godot-rc--inspector-insert-unsupported-property (_data)
