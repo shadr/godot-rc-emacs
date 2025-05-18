@@ -235,5 +235,10 @@
       (insert visible-name)
       (insert " UNSUPPORTED\n"))))
 
+(godot-rc-add-notification-handler "property-changed" #'godot-rc--inspector-on-property-changed)
+
+(defun godot-rc--inspector-on-property-changed (params)
+  (godot-rc-inspector-refresh-buffer))
+
 (provide 'godot-rc-inspector)
 ;;; godot-rc-inspector.el ends here
