@@ -15,6 +15,7 @@
 ;; TODO: refresh single property on notification instead of whole buffer
 ;; TODO: show which properties has non-default value
 ;; TODO: put object-id text property on magit-sections, later it could be overwriten in nested sections by child godot objects
+;; TODO: fix: VisualInstance3D don't have Layers property
 
 (require 'magit-section)
 (require 'f)
@@ -232,11 +233,20 @@
   (setq godot-rc--inspector-property-hint-string (gethash "hint_string" data))
   (setq godot-rc--inspector-property-value (gethash "value" data))
   (setq godot-rc--inspector-property-usage (gethash "usage" data))
-  (let* ((type godot-rc--inspector-property-type))
+  (let* ((type godot-rc--inspector-property-type)
+         (start (point)))
     (pcase type
       ((guard (eq type godot-rc--variant-type-bool)) (godot-rc--inspector-insert-bool-property))
       ((guard (eq type godot-rc--variant-type-int)) (godot-rc--inspector-insert-int-property))
-      (_ (godot-rc--inspector-insert-unsupported-property data)))))
+      (_ (godot-rc--inspector-insert-unsupported-property data)))
+    (put-text-property start (point) 'property-name godot-rc--inspector-property-name)
+    (put-text-property start (point) 'value godot-rc--inspector-property-value)))
+
+(defun godot-rc--inspector-insert-visible-name ()
+  (insert (make-string (* 2 (godot-rc--magit-section-depth magit-insert-section--current)) ?\s)
+          godot-rc--inspector-property-visible-name
+          " "))
+
 
 (defvar godot-rc--inspector-bool-keymap
   (let ((map (make-sparse-keymap)))
@@ -257,13 +267,10 @@
   (let* ((value godot-rc--inspector-property-value)
          (value (not (eq value :false))))
     (magit-insert-section-body
-      (insert (make-string (* 2 (godot-rc--magit-section-depth magit-insert-section--current)) ?\s))
-      (insert godot-rc--inspector-property-visible-name)
-      (insert " ")
+      (godot-rc--inspector-insert-visible-name)
       (insert (propertize (if value "TRUE" "FALSE")
                           'face 'underline
                           'keymap godot-rc--inspector-bool-keymap
-                          'property-name godot-rc--inspector-property-name
                           'value value))
       (insert "\n"))))
 
@@ -292,14 +299,10 @@
 
 (defun godot-rc--inspector-int-number-property ()
   (magit-insert-section-body
-    (insert (make-string (* 2 (godot-rc--magit-section-depth magit-insert-section--current)) ?\s))
-    (insert godot-rc--inspector-property-visible-name)
-    (insert " ")
+    (godot-rc--inspector-insert-visible-name)
     (insert (propertize (number-to-string godot-rc--inspector-property-value)
                         'face 'underline
-                        'property-name godot-rc--inspector-property-name
-                        'keymap godot-rc--inspector-int-keymap
-                        'value godot-rc--inspector-property-value))
+                        'keymap godot-rc--inspector-int-keymap))
     (insert "\n")))
 
 
@@ -323,23 +326,17 @@
 (defun godot-rc--inspector-int-enum-property ()
   (let ((enum-options (split-string godot-rc--inspector-property-hint-string ",")))
     (magit-insert-section-body
-      (insert (make-string (* 2 (godot-rc--magit-section-depth magit-insert-section--current)) ?\s))
-      (insert godot-rc--inspector-property-visible-name)
-      (insert " ")
+      (godot-rc--inspector-insert-visible-name)
       (insert (propertize (nth godot-rc--inspector-property-value enum-options)
                           'face 'underline
-                          'property-name godot-rc--inspector-property-name
                           'keymap godot-rc--inspector-int-enum-keymap
-                          'value godot-rc--inspector-property-value
                           'options enum-options))
       (insert "\n"))))
 
 (defun godot-rc--inspector-insert-unsupported-property (_data)
   (magit-insert-section-body
-    (insert (make-string (* 2 (godot-rc--magit-section-depth magit-insert-section--current)) ?\s))
-    (insert godot-rc--inspector-property-visible-name)
-    (insert " UNSUPPORTED\n")))
-
+    (godot-rc--inspector-insert-visible-name)
+    (insert "UNSUPPORTED\n")))
 
 (godot-rc-add-notification-handler "property-changed" #'godot-rc--inspector-on-property-changed)
 
