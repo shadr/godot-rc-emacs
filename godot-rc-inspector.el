@@ -11,6 +11,9 @@
 ;;
 ;;; Code:
 
+;; TODO: store object-id in text properties of godot properties
+;; TODO: refresh single property on notification instead of whole buffer
+
 (require 'magit-section)
 (require 'f)
 (require 'evil)
@@ -161,7 +164,6 @@
            (godot-rc--inspector-insert-sections data)
            (goto-char p)))))))
 
-
 (defun godot-rc--open-inspector (object-id)
   (godot-rc--get-node-properties
    object-id
@@ -217,6 +219,7 @@
          (type (gethash "type" data)))
     (pcase type
       ((guard (eq type godot-rc--variant-type-bool)) (godot-rc--inspector-insert-bool-property data))
+      ((guard (eq type godot-rc--variant-type-int)) (godot-rc--inspector-insert-int-property data))
       (_ (godot-rc--inspector-insert-unsupported-property data)))))
 
 (defvar godot-rc--inspector-bool-keymap
@@ -248,7 +251,46 @@
                           'keymap godot-rc--inspector-bool-keymap
                           'property-name property-name
                           'value value))
-      (insert " \n"))))
+      (insert "\n"))))
+
+(defvar godot-rc--inspector-int-keymap
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "c") #'godot-rc--inspector-int-change)
+    map))
+
+(defun godot-rc--inspector-int-change ()
+  (interactive)
+  (let* ((property-name (get-text-property (point) 'property-name))
+         (new-value (read-number (concat "New value for " property-name ": "))))
+    (godot-rc-request
+     "inspector-change-property"
+     `((object_id . ,godot-rc--inspector-object-id)
+       (value . ,new-value)
+       (property . ,property-name)))))
+
+
+(defun godot-rc--inspector-insert-int-property (data)
+  (let* ((visible-name (gethash "visible_name" data))
+         (property-name (gethash "property" data))
+         (value (gethash "value" data))
+         (hint (gethash "hint" data)))
+
+    (pcase hint
+      ((guard (eq hint godot-rc--property_hint_none)) (godot-rc--inspector-int-number-property visible-name property-name value)))))
+
+
+(defun godot-rc--inspector-int-number-property (visible-name property-name value)
+  (magit-insert-section-body
+    (insert (make-string (* 2 (godot-rc--magit-section-depth magit-insert-section--current)) ?\s))
+    (insert visible-name)
+    (insert " ")
+    (insert (propertize (number-to-string value)
+                        'face 'underline
+                        'property-name property-name
+                        'keymap godot-rc--inspector-int-keymap
+                        'value value))
+    (insert "\n")))
+
 
 (defun godot-rc--inspector-insert-unsupported-property (data)
   (let ((visible-name (gethash "visible_name" data)))
@@ -256,6 +298,7 @@
       (insert (make-string (* 2 (godot-rc--magit-section-depth magit-insert-section--current)) ?\s))
       (insert visible-name)
       (insert " UNSUPPORTED\n"))))
+
 
 (godot-rc-add-notification-handler "property-changed" #'godot-rc--inspector-on-property-changed)
 
