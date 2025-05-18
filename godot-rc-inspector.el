@@ -21,6 +21,7 @@
 ;; TODO: feat: support math in number properties
 ;; TODO: fix: support explicit enum values, they can be stored in hint_string as "Zero,One,Three:3,Four,Six:6"
 ;; TODO: create single function for changing property value, store specific change-property functions in text properties
+;; TODO: add checks for supported type and hint combinations
 
 (require 'magit-section)
 (require 'f)
@@ -272,7 +273,7 @@
      "inspector-change-property"
      `((object_id . ,godot-rc--inspector-object-id)
        (property . ,property-name)
-       (value . ,(not previous-value))))))
+       (value . ,(eq previous-value :false))))))
 
 (defun godot-rc--inspector-insert-bool-property ()
   (let* ((value godot-rc--inspector-property-value)
@@ -439,7 +440,10 @@
 (defun godot-rc--inspector-insert-unsupported-property (_data)
   (magit-insert-section-body
     (godot-rc--inspector-insert-visible-name)
-    (insert "UNSUPPORTED\n")))
+    (insert "UNSUPPORTED"
+            " type: " (number-to-string godot-rc--inspector-property-type)
+            " hint:" (number-to-string godot-rc--inspector-property-hint)
+            " hint_string: " godot-rc--inspector-property-hint-string "\n")))
 
 (godot-rc-add-notification-handler "property-changed" #'godot-rc--inspector-on-property-changed)
 
