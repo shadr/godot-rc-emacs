@@ -13,6 +13,7 @@
 
 ;; TODO: store object-id in text properties of godot properties
 ;; TODO: refresh single property on notification instead of whole buffer
+;; TODO: show which properties has non-default value
 
 (require 'magit-section)
 (require 'f)
@@ -276,7 +277,8 @@
          (hint (gethash "hint" data)))
 
     (pcase hint
-      ((guard (eq hint godot-rc--property_hint_none)) (godot-rc--inspector-int-number-property visible-name property-name value)))))
+      ((guard (eq hint godot-rc--property_hint_none)) (godot-rc--inspector-int-number-property visible-name property-name value))
+      ((guard (eq hint godot-rc--property_hint_enum)) (godot-rc--inspector-int-enum-property visible-name property-name value (gethash "hint_string" data))))))
 
 
 (defun godot-rc--inspector-int-number-property (visible-name property-name value)
@@ -290,6 +292,38 @@
                         'keymap godot-rc--inspector-int-keymap
                         'value value))
     (insert "\n")))
+
+
+(defvar godot-rc--inspector-int-enum-keymap
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "c") #'godot-rc--inspector-int-enum-change)
+    map))
+
+(defun godot-rc--inspector-int-enum-change ()
+  (interactive)
+  (let* ((property-name (get-text-property (point) 'property-name))
+         (options (get-text-property (point) 'options))
+         (new-option (completing-read (concat "New value for " property-name ": ") options))
+         (new-value (cl-position new-option options :test 'equal)))
+    (godot-rc-request
+     "inspector-change-property"
+     `((object_id . ,godot-rc--inspector-object-id)
+       (value . ,new-value)
+       (property . ,property-name)))))
+
+(defun godot-rc--inspector-int-enum-property (visible-name property-name value hint-string)
+  (let ((enum-options (split-string hint-string ",")))
+    (magit-insert-section-body
+      (insert (make-string (* 2 (godot-rc--magit-section-depth magit-insert-section--current)) ?\s))
+      (insert visible-name)
+      (insert " ")
+      (insert (propertize (nth value enum-options)
+                          'face 'underline
+                          'property-name property-name
+                          'keymap godot-rc--inspector-int-enum-keymap
+                          'value value
+                          'options enum-options))
+      (insert "\n"))))
 
 
 (defun godot-rc--inspector-insert-unsupported-property (data)
