@@ -11,12 +11,15 @@
 ;;
 ;;; Code:
 
-;; TODO: refresh single property on notification instead of whole buffer
-;; TODO: show which properties has non-default value
+;; TODO: perf: refresh single property on notification instead of whole buffer
+;; TODO: feat: show which properties has non-default value
 ;; TODO: put object-id text property on magit-sections, later it could be overwriten in nested sections by child godot objects
 ;; TODO: fix: VisualInstance3D don't have Layers property, because it is an integer property and has layers hint
 ;; TODO: smarter point restoration after refreshing buffer, currently point jumps if number of properties changes (changing Transform -> Rotation Edit Mode)
 ;; TODO: save path to inspected object as filepath/node/child-node..., currently refreshing inspector not working when scene is closed in godot
+;; TODO: add keymap for the whole property text row instead of only value
+;; TODO: feat: support math in number properties
+;; TODO: fix: support explicit enum values, they can be stored in hint_string as "Zero,One,Three:3,Four,Six:6"
 
 (require 'magit-section)
 (require 'f)
@@ -239,7 +242,9 @@
     (pcase type
       ((guard (eq type godot-rc--variant-type-bool)) (godot-rc--inspector-insert-bool-property))
       ((guard (eq type godot-rc--variant-type-int)) (godot-rc--inspector-insert-int-property))
+      ((guard (eq type godot-rc--variant-type-vector2)) (godot-rc--inspector-insert-vector2-property))
       ((guard (eq type godot-rc--variant-type-vector3)) (godot-rc--inspector-insert-vector3-property))
+      ((guard (eq type godot-rc--variant-type-vector4)) (godot-rc--inspector-insert-vector4-property))
       (_ (godot-rc--inspector-insert-unsupported-property data)))
     (if (eq start (point))
         (message (concat "warning: property " godot-rc--inspector-property-name " didn't show up in inspector, hint: " (number-to-string godot-rc--inspector-property-hint))))
@@ -250,7 +255,6 @@
   (insert (make-string (* 2 (godot-rc--magit-section-depth magit-insert-section--current)) ?\s)
           godot-rc--inspector-property-visible-name
           " "))
-
 
 (defvar godot-rc--inspector-bool-keymap
   (let ((map (make-sparse-keymap)))
@@ -293,7 +297,6 @@
        (value . ,new-value)
        (property . ,property-name)))))
 
-
 (defun godot-rc--inspector-insert-int-property ()
   (let ((hint godot-rc--inspector-property-hint))
     (pcase hint
@@ -308,7 +311,6 @@
                         'face 'underline
                         'keymap godot-rc--inspector-int-keymap))
     (insert "\n")))
-
 
 (defvar godot-rc--inspector-int-enum-keymap
   (let ((map (make-sparse-keymap)))
@@ -337,19 +339,19 @@
                           'options enum-options))
       (insert "\n"))))
 
-(defvar godot-rc--inspector-vector3-keymap
+;; (defvar godot-rc--inspector-vector3-keymap
+;;   (let ((map (make-sparse-keymap)))
+;;     (define-key map (kbd "c") #'godot-rc--inspector-vector3-change)
+;;     map))
+
+;; (defun godot-rc--inspector-vector3-change ())
+
+(defvar godot-rc--inspector-vector-component-keymap
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "c") #'godot-rc--inspector-vector3-change)
+    (define-key map (kbd "c") #'godot-rc--inspector-vector-component-change)
     map))
 
-(defun godot-rc--inspector-vector3-change ())
-
-(defvar godot-rc--inspector-vector3-component-keymap
-  (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "c") #'godot-rc--inspector-vector3-component-change)
-    map))
-
-(defun godot-rc--inspector-vector3-component-change ()
+(defun godot-rc--inspector-vector-component-change ()
   (interactive)
   (let* ((property-name (get-text-property (point) 'property-name))
          (field (get-text-property (point) 'field))
@@ -360,31 +362,27 @@
        (value . ,new-value)
        (property . (,property-name ,field))))))
 
+(defmacro godot-rc--inspector-vector-definitions-macro (name &rest fields)
+  (let ((fun-name (intern (format "godot-rc--inspector-insert-%s-property" name))))
+    `(defun ,fun-name ()
+       (let* ((split (string-split (string-trim godot-rc--inspector-property-value "[\(\)]" "[\(\)]") ", "))
+              ,@(cl-loop for field in fields
+                         for i from 0
+                         collect `(,field (nth ,i split))))
 
-(defun godot-rc--inspector-insert-vector3-property ()
-  (let* ((split (string-split (string-trim godot-rc--inspector-property-value "[\(\)]" "[\(\)]") ", "))
-         (x (nth 0 split))
-         (y (nth 1 split))
-         (z (nth 2 split)))
-    (magit-insert-section-body
-      (godot-rc--inspector-insert-visible-name)
-      (insert (propertize x
-                          'face 'underline
-                          'keymap godot-rc--inspector-vector3-component-keymap
-                          'field 'x))
-      (insert " ")
-      (insert (propertize y
-                          'face 'underline
-                          'keymap godot-rc--inspector-vector3-component-keymap
-                          'field 'y))
+         (magit-insert-section-body
+           (godot-rc--inspector-insert-visible-name)
+           ,@(cl-loop for field in fields
+                      collect `(insert (propertize ,field
+                                                   'face 'underline
+                                                   'keymap godot-rc--inspector-vector-component-keymap
+                                                   'field ',field))
+                      collect `(insert " "))
+           (insert "\n"))))))
 
-      (insert " ")
-      (insert (propertize z
-                          'face 'underline
-                          'keymap godot-rc--inspector-vector3-component-keymap
-                          'field 'z))
-      (insert "\n"))))
-
+(godot-rc--inspector-vector-definitions-macro vector2 x y)
+(godot-rc--inspector-vector-definitions-macro vector3 x y z)
+(godot-rc--inspector-vector-definitions-macro vector4 x y z w)
 
 (defun godot-rc--inspector-insert-unsupported-property (_data)
   (magit-insert-section-body
