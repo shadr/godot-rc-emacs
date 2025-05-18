@@ -20,6 +20,7 @@
 ;; TODO: add keymap for the whole property text row instead of only value
 ;; TODO: feat: support math in number properties
 ;; TODO: fix: support explicit enum values, they can be stored in hint_string as "Zero,One,Three:3,Four,Six:6"
+;; TODO: create single function for changing property value, store specific change-property functions in text properties
 
 (require 'magit-section)
 (require 'f)
@@ -245,6 +246,7 @@
       ((guard (eq type godot-rc--variant-type-vector2)) (godot-rc--inspector-insert-vector2-property))
       ((guard (eq type godot-rc--variant-type-vector3)) (godot-rc--inspector-insert-vector3-property))
       ((guard (eq type godot-rc--variant-type-vector4)) (godot-rc--inspector-insert-vector4-property))
+      ((guard (eq type godot-rc--variant-type-string)) (godot-rc--inspector-insert-string-property))
       (_ (godot-rc--inspector-insert-unsupported-property data)))
     (if (eq start (point))
         (message (concat "warning: property " godot-rc--inspector-property-name " didn't show up in inspector, hint: " (number-to-string godot-rc--inspector-property-hint))))
@@ -383,6 +385,32 @@
 (godot-rc--inspector-vector-definitions-macro vector2 x y)
 (godot-rc--inspector-vector-definitions-macro vector3 x y z)
 (godot-rc--inspector-vector-definitions-macro vector4 x y z w)
+
+(defvar godot-rc--inspector-string-keymap
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "c") #'godot-rc--inspector-string-change)
+    map))
+
+(defun godot-rc--inspector-string-change ()
+  (interactive)
+  (let* ((property-name (get-text-property (point) 'property-name))
+         (old-string (get-text-property (point) 'value))
+         (new-string (read-string "New string: " old-string)))
+    (godot-rc-request
+     "inspector-change-property"
+     `((object_id . ,godot-rc--inspector-object-id)
+       (value . ,new-string)
+       (property . ,property-name)))))
+
+(defun godot-rc--inspector-insert-string-property ()
+  (magit-insert-section-body
+    (godot-rc--inspector-insert-visible-name)
+    (insert
+     (propertize
+      (if (string-equal godot-rc--inspector-property-value "") "EMPTY" godot-rc--inspector-property-value)
+      'face 'underline
+      'keymap godot-rc--inspector-string-keymap))
+    (insert "\n")))
 
 (defun godot-rc--inspector-insert-unsupported-property (_data)
   (magit-insert-section-body
