@@ -13,9 +13,12 @@
 
 (require 'magit-section)
 (require 'f)
+(require 'evil)
 
 (require 'godot-rc-core)
 (require 'godot-rc-utils)
+
+(defvar godot-rc--inspector-object-id nil)
 
 (defconst godot-rc--variant-type-nil 0)
 (defconst godot-rc--variant-type-bool 1)
@@ -135,7 +138,8 @@
 (defconst godot-rc--property_usage_read_only (ash 1 28))
 (defconst godot-rc--property_usage_secret (ash 1 29))
 
-(define-derived-mode inspector-mode magit-section-mode "INSPECTOR")
+(define-derived-mode inspector-mode magit-section-mode "INSPECTOR"
+  (evil-define-key 'normal inspector-mode-map (kbd "R") #'godot-rc-inspector-refresh-buffer))
 
 (defun godot-rc--get-node-properties (object-id callback)
   (godot-rc-request-callback "node-properties" `((node_id . ,object-id) (opened_props . ())) callback))
@@ -145,6 +149,16 @@
   (let ((node-id (magit-section-ident-value (magit-current-section))))
     (godot-rc--open-inspector node-id)))
 
+(defun godot-rc-inspector-refresh-buffer()
+  (interactive)
+  (with-current-buffer (get-buffer "*inspector*")
+    (godot-rc--get-node-properties
+     godot-rc--inspector-object-id
+     (lambda (data)
+       (with-current-buffer (get-buffer "*inspector*")
+
+         (let ((inhibit-read-only t))
+           (godot-rc--inspector-insert-sections data)))))))
 
 (defun godot-rc--open-inspector (object-id)
   (godot-rc--get-node-properties
@@ -152,15 +166,16 @@
    (lambda (data)
      (with-current-buffer (get-buffer-create "*inspector*")
        (inspector-mode)
+       (setq-local godot-rc--inspector-object-id object-id)
        (let ((inhibit-read-only t))
-         (erase-buffer)
          (godot-rc--inspector-insert-sections data))
        (pop-to-buffer (current-buffer))))))
 
 (defun godot-rc--inspector-insert-sections (data)
+  (erase-buffer)
+  (remove-overlays)
   (magit-insert-section (magit-section "inspector-root")
     (dolist (d data) (godot-rc--inspector-insert-category-section d))))
-
 
 (defun godot-rc--inspector-insert-section (data)
   (let* ((visible-name (gethash "visible_name" data))
@@ -205,18 +220,18 @@
 (defun godot-rc--inspector-insert-bool-property (data)
   (let ((visible-name (gethash "visible_name" data)))
     (magit-insert-section-body
-      (widget-insert (make-string (* 2 (godot-rc--magit-section-depth magit-insert-section--current)) ?\s))
-      (widget-insert visible-name)
-      (widget-insert " ")
-      (widget-create 'checkbox)
-      (widget-insert "\n"))))
+      (insert (make-string (* 2 (godot-rc--magit-section-depth magit-insert-section--current)) ?\s))
+      (insert visible-name)
+      (insert " ")
+      (insert (propertize "false" 'face 'underline))
+      (insert " \n"))))
 
 (defun godot-rc--inspector-insert-unsupported-property (data)
   (let ((visible-name (gethash "visible_name" data)))
     (magit-insert-section-body
-      (widget-insert (make-string (* 2 (godot-rc--magit-section-depth magit-insert-section--current)) ?\s))
-      (widget-insert visible-name)
-      (widget-insert " UNSUPPORTED\n"))))
+      (insert (make-string (* 2 (godot-rc--magit-section-depth magit-insert-section--current)) ?\s))
+      (insert visible-name)
+      (insert " UNSUPPORTED\n"))))
 
 (provide 'godot-rc-inspector)
 ;;; godot-rc-inspector.el ends here
