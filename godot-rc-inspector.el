@@ -219,13 +219,35 @@
       ((guard (eq type godot-rc--variant-type-bool)) (godot-rc--inspector-insert-bool-property data))
       (_ (godot-rc--inspector-insert-unsupported-property data)))))
 
+(defvar godot-rc--inspector-bool-keymap
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "c") #'godot-rc--inspector-bool-change)
+    map))
+
+(defun godot-rc--inspector-bool-change ()
+  (interactive)
+  (let* ((property-name (get-text-property (point) 'property-name))
+         (previous-value (get-text-property (point) 'value)))
+    (godot-rc-request
+     "inspector-change-property"
+     `((object_id . ,godot-rc--inspector-object-id)
+       (property . ,property-name)
+       (value . ,(not previous-value))))))
+
 (defun godot-rc--inspector-insert-bool-property (data)
-  (let ((visible-name (gethash "visible_name" data)))
+  (let* ((visible-name (gethash "visible_name" data))
+         (property-name (gethash "property" data))
+         (value (gethash "value" data))
+         (value (not (eq value :false))))
     (magit-insert-section-body
       (insert (make-string (* 2 (godot-rc--magit-section-depth magit-insert-section--current)) ?\s))
       (insert visible-name)
       (insert " ")
-      (insert (propertize "false" 'face 'underline))
+      (insert (propertize (if value "TRUE" "FALSE")
+                          'face 'underline
+                          'keymap godot-rc--inspector-bool-keymap
+                          'property-name property-name
+                          'value value))
       (insert " \n"))))
 
 (defun godot-rc--inspector-insert-unsupported-property (data)
