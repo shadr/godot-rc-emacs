@@ -149,7 +149,7 @@
   (let ((node-id (magit-section-ident-value (magit-current-section))))
     (godot-rc--open-inspector node-id)))
 
-(defun godot-rc-inspector-refresh-buffer()
+(defun godot-rc-inspector-refresh-buffer ()
   (interactive)
   (with-current-buffer (get-buffer "*inspector*")
     (godot-rc--get-node-properties
@@ -157,8 +157,10 @@
      (lambda (data)
        (with-current-buffer (get-buffer "*inspector*")
 
-         (let ((inhibit-read-only t))
-           (godot-rc--inspector-insert-sections data)))))))
+         (let ((inhibit-read-only t) (p (point)))
+           (godot-rc--inspector-insert-sections data)
+           (goto-char p)))))))
+
 
 (defun godot-rc--open-inspector (object-id)
   (godot-rc--get-node-properties
