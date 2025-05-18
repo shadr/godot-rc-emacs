@@ -12,7 +12,6 @@
 ;;; Code:
 
 ;; TODO: perf: refresh single property on notification instead of whole buffer
-;; TODO: feat: show which properties has non-default value
 ;; TODO: put object-id text property on magit-sections, later it could be overwriten in nested sections by child godot objects
 ;; TODO: fix: VisualInstance3D don't have Layers property, because it is an integer property and has layers hint
 ;; TODO: smarter point restoration after refreshing buffer, currently point jumps if number of properties changes (changing Transform -> Rotation Edit Mode)
@@ -39,6 +38,7 @@
 (defvar godot-rc--inspector-property-value nil)
 (defvar godot-rc--inspector-property-usage nil)
 (defvar godot-rc--inspector-property-type nil)
+(defvar godot-rc--inspector-property-non-default nil)
 
 (defconst godot-rc--variant-type-nil 0)
 (defconst godot-rc--variant-type-bool 1)
@@ -239,6 +239,7 @@
   (setq godot-rc--inspector-property-hint-string (gethash "hint_string" data))
   (setq godot-rc--inspector-property-value (gethash "value" data))
   (setq godot-rc--inspector-property-usage (gethash "usage" data))
+  (setq godot-rc--inspector-property-non-default (gethash "non_default" data))
   (let* ((type godot-rc--inspector-property-type)
          (start (point)))
     (pcase type
@@ -256,9 +257,11 @@
     (put-text-property start (point) 'value godot-rc--inspector-property-value)))
 
 (defun godot-rc--inspector-insert-visible-name ()
-  (insert (make-string (* 2 (godot-rc--magit-section-depth magit-insert-section--current)) ?\s)
-          godot-rc--inspector-property-visible-name
-          " "))
+  (let* ((indent (- (* 2 (godot-rc--magit-section-depth magit-insert-section--current)) 1)))
+    (insert (make-string indent ?\s)
+            (if (not (eq godot-rc--inspector-property-non-default :false)) "*" " ")
+            godot-rc--inspector-property-visible-name
+            " ")))
 
 (defvar godot-rc--inspector-bool-keymap
   (let ((map (make-sparse-keymap)))
