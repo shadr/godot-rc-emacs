@@ -15,7 +15,8 @@
 ;; TODO: refresh single property on notification instead of whole buffer
 ;; TODO: show which properties has non-default value
 ;; TODO: put object-id text property on magit-sections, later it could be overwriten in nested sections by child godot objects
-;; TODO: fix: VisualInstance3D don't have Layers property
+;; TODO: fix: VisualInstance3D don't have Layers property, because it is an integer property and has layers hint
+;; TODO: smarter point restoration after refreshing buffer, currently point jumps if number of properties changes (changing Transform -> Rotation Edit Mode)
 
 (require 'magit-section)
 (require 'f)
@@ -239,6 +240,8 @@
       ((guard (eq type godot-rc--variant-type-bool)) (godot-rc--inspector-insert-bool-property))
       ((guard (eq type godot-rc--variant-type-int)) (godot-rc--inspector-insert-int-property))
       (_ (godot-rc--inspector-insert-unsupported-property data)))
+    (if (eq start (point))
+        (message (concat "warning: property " godot-rc--inspector-property-name " didn't show up in inspector, hint: " (number-to-string godot-rc--inspector-property-hint))))
     (put-text-property start (point) 'property-name godot-rc--inspector-property-name)
     (put-text-property start (point) 'value godot-rc--inspector-property-value)))
 
