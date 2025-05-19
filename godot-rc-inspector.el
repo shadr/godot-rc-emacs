@@ -12,7 +12,6 @@
 ;;; Code:
 
 ;; TODO: perf: refresh single property on notification instead of whole buffer
-;; TODO: put object-id text property on magit-sections, later it could be overwriten in nested sections by child godot objects
 ;; TODO: fix: VisualInstance3D don't have Layers property, because it is an integer property and has layers hint
 ;; TODO: smarter point restoration after refreshing buffer, currently point jumps if number of properties changes (changing Transform -> Rotation Edit Mode)
 ;; TODO: save path to inspected object as filepath/node/child-node..., currently refreshing inspector not working when scene is closed in godot
@@ -21,6 +20,7 @@
 ;; TODO: fix: support explicit enum values, they can be stored in hint_string as "Zero,One,Three:3,Four,Six:6"
 ;; TODO: create single function for changing property value, store specific change-property functions in text properties
 ;; TODO: add checks for supported type and hint combinations
+;; TODO: show number of changed properties in heading when it is collapsed
 
 (require 'magit-section)
 (require 'f)
@@ -192,11 +192,14 @@
          (godot-rc--inspector-insert-sections data))
        (pop-to-buffer (current-buffer))))))
 
+
 (defun godot-rc--inspector-insert-sections (data)
   (erase-buffer)
   (remove-overlays)
-  (magit-insert-section (magit-section "inspector-root")
-    (dolist (d data) (godot-rc--inspector-insert-category-section d))))
+  (let ((start (point)))
+    (magit-insert-section (magit-section "inspector-root")
+      (dolist (d data) (godot-rc--inspector-insert-category-section d)))
+    (put-text-property start (point) 'object-id godot-rc--inspector-object-id)))
 
 (defun godot-rc--inspector-insert-section (data)
   (let* ((visible-name (gethash "visible_name" data))
@@ -274,7 +277,7 @@
          (previous-value (get-text-property (point) 'value)))
     (godot-rc-request
      "inspector-change-property"
-     `((object_id . ,godot-rc--inspector-object-id)
+     `((object_id . ,(get-text-property (point) 'object-id))
        (property . ,property-name)
        (value . ,(eq previous-value :false))))))
 
@@ -300,7 +303,7 @@
          (new-value (read-number (concat "New value for " property-name ": "))))
     (godot-rc-request
      "inspector-change-property"
-     `((object_id . ,godot-rc--inspector-object-id)
+     `((object_id . ,(get-text-property (point) 'object-id))
        (value . ,new-value)
        (property . ,property-name)))))
 
@@ -332,7 +335,7 @@
          (new-value (cl-position new-option options :test 'equal)))
     (godot-rc-request
      "inspector-change-property"
-     `((object_id . ,godot-rc--inspector-object-id)
+     `((object_id . ,(get-text-property (point) 'object-id))
        (value . ,new-value)
        (property . ,property-name)))))
 
@@ -365,7 +368,7 @@
          (new-value (read-number "New value: ")))
     (godot-rc-request
      "inspector-change-property"
-     `((object_id . ,godot-rc--inspector-object-id)
+     `((object_id . ,(get-text-property (point) 'object-id))
        (value . ,new-value)
        (property . (,property-name ,field))))))
 
@@ -403,7 +406,7 @@
          (new-string (read-string "New string: " old-string)))
     (godot-rc-request
      "inspector-change-property"
-     `((object_id . ,godot-rc--inspector-object-id)
+     `((object_id . ,(get-text-property (point) 'object-id))
        (value . ,new-string)
        (property . ,property-name)))))
 
@@ -428,7 +431,7 @@
          (new-value (read-number (concat "New value for " property-name ": "))))
     (godot-rc-request
      "inspector-change-property"
-     `((object_id . ,godot-rc--inspector-object-id)
+     `((object_id . ,(get-text-property (point) 'object-id))
        (value . ,new-value)
        (property . ,property-name)))))
 
