@@ -41,18 +41,18 @@
 (defvar godot-rc--inspector-property-non-default nil)
 
 (defconst godot-rc--variant-type-nil 0)
-(defconst godot-rc--variant-type-bool 1)
-(defconst godot-rc--variant-type-int 2)
-(defconst godot-rc--variant-type-float 3)
-(defconst godot-rc--variant-type-string 4)
-(defconst godot-rc--variant-type-vector2 5)
+(defconst godot-rc--variant-type-bool 1) ; done
+(defconst godot-rc--variant-type-int 2) ; done
+(defconst godot-rc--variant-type-float 3) ; done
+(defconst godot-rc--variant-type-string 4) ; done
+(defconst godot-rc--variant-type-vector2 5) ; done
 (defconst godot-rc--variant-type-vector2i 6)
 (defconst godot-rc--variant-type-rect2 7)
 (defconst godot-rc--variant-type-rect2i 8)
-(defconst godot-rc--variant-type-vector3 9)
+(defconst godot-rc--variant-type-vector3 9) ; done
 (defconst godot-rc--variant-type-vector3i 10)
 (defconst godot-rc--variant-type-transform2d 11)
-(defconst godot-rc--variant-type-vector4 12)
+(defconst godot-rc--variant-type-vector4 12) ; done
 (defconst godot-rc--variant-type-vector4i 13)
 (defconst godot-rc--variant-type-plane 14)
 (defconst godot-rc--variant-type-quaternion 15)
@@ -60,7 +60,7 @@
 (defconst godot-rc--variant-type-basis 17)
 (defconst godot-rc--variant-type-transform3d 18)
 (defconst godot-rc--variant-type-projection 19)
-(defconst godot-rc--variant-type-color 20)
+(defconst godot-rc--variant-type-color 20) ; done
 (defconst godot-rc--variant-type-string_name 21)
 (defconst godot-rc--variant-type-node_path 22)
 (defconst godot-rc--variant-type-rid 23)
@@ -253,9 +253,10 @@
       ((guard (eq type godot-rc--variant-type-string)) (godot-rc--inspector-insert-string-property))
       ((guard (eq type godot-rc--variant-type-color)) (godot-rc--inspector-insert-color-property))
       (_ (godot-rc--inspector-insert-unsupported-property)))
-    (if (eq start (point))
-        (message (concat "warning: property " godot-rc--inspector-property-name " didn't show up in inspector, hint: " (number-to-string godot-rc--inspector-property-hint))))
+    (when (eq start (point))
+      (message (concat "warning: property " godot-rc--inspector-property-name " didn't show up in inspector, hint: " (number-to-string godot-rc--inspector-property-hint))))
     (put-text-property start (point) 'property-name godot-rc--inspector-property-name)
+    (put-text-property start (point) 'hint-string godot-rc--inspector-property-hint-string)
     (put-text-property start (point) 'value godot-rc--inspector-property-value)))
 
 (defun godot-rc--inspector-insert-visible-name ()
@@ -312,6 +313,7 @@
   (let ((hint godot-rc--inspector-property-hint))
     (pcase hint
       ((guard (eq hint godot-rc--property_hint_none)) (godot-rc--inspector-insert-int-number-property))
+      ((guard (eq hint godot-rc--property_hint_range)) (godot-rc--inspector-insert-int-range-property))
       ((guard (eq hint godot-rc--property_hint_enum)) (godot-rc--inspector-insert-int-enum-property)))))
 
 (godot-rc--define-simple-property int-number (number-to-string godot-rc--inspector-property-value) godot-rc--inspector-int-keymap)
@@ -335,6 +337,27 @@
                          'face 'underline
                          'keymap godot-rc--inspector-int-enum-keymap
                          'options enum-options)))))
+
+(defvar godot-rc--inspector-int-range-keymap
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "c") #'godot-rc--inspector-int-range-change)
+    map))
+
+(defun godot-rc--inspector-int-range-change ()
+  (interactive)
+  (let* ((split (string-split (get-text-property (point) 'hint-string) ","))
+         (min-value (nth 0 split))
+         (max-value (nth 1 split))
+         (new-value (read-number (format "New value [%s..%s]: " min-value max-value))))
+    (godot-rc--inspector-change-property-under-point new-value)))
+
+(defun godot-rc--inspector-insert-int-range-property ()
+  (magit-insert-section-body
+    (godot-rc--inspector-insert-visible-name)
+    (insert (propertize (number-to-string godot-rc--inspector-property-value)
+                        'face 'underline
+                        'keymap godot-rc--inspector-int-range-keymap))
+    (insert "\n")))
 
 ;; (defvar godot-rc--inspector-vector3-keymap
 ;;   (let ((map (make-sparse-keymap)))
