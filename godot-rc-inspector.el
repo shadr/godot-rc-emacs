@@ -252,7 +252,7 @@
       ((guard (eq type godot-rc--variant-type-vector4)) (godot-rc--inspector-insert-vector4-property))
       ((guard (eq type godot-rc--variant-type-string)) (godot-rc--inspector-insert-string-property))
       ((guard (eq type godot-rc--variant-type-color)) (godot-rc--inspector-insert-color-property))
-      (_ (godot-rc--inspector-insert-unsupported-property data)))
+      (_ (godot-rc--inspector-insert-unsupported-property)))
     (if (eq start (point))
         (message (concat "warning: property " godot-rc--inspector-property-name " didn't show up in inspector, hint: " (number-to-string godot-rc--inspector-property-hint))))
     (put-text-property start (point) 'property-name godot-rc--inspector-property-name)
@@ -265,6 +265,27 @@
             godot-rc--inspector-property-visible-name
             " ")))
 
+(defun godot-rc--inspector-change-property-under-point (value &optional property)
+  (unless property (setq property (get-text-property (point) 'property-name)))
+  (godot-rc-request
+   "inspector-change-property"
+   `((object_id . ,(get-text-property (point) 'object-id))
+     (property . ,property)
+     (value . ,value))))
+
+(defmacro godot-rc--inspector-simple-body (&rest body)
+  `(magit-insert-section-body
+     (godot-rc--inspector-insert-visible-name)
+     (progn ,@body)
+     (insert "\n")))
+
+(defmacro godot-rc--define-simple-property (name form keymap)
+  `(defun ,(intern (format "godot-rc--inspector-insert-%s-property" name)) ()
+     (godot-rc--inspector-simple-body
+      (insert (propertize ,form
+                          'face 'underline
+                          'keymap ,keymap)))))
+
 (defvar godot-rc--inspector-bool-keymap
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "c") #'godot-rc--inspector-bool-change)
@@ -272,24 +293,10 @@
 
 (defun godot-rc--inspector-bool-change ()
   (interactive)
-  (let* ((property-name (get-text-property (point) 'property-name))
-         (previous-value (get-text-property (point) 'value)))
-    (godot-rc-request
-     "inspector-change-property"
-     `((object_id . ,(get-text-property (point) 'object-id))
-       (property . ,property-name)
-       (value . ,(eq previous-value :false))))))
+  (let* ((previous-value (get-text-property (point) 'value)))
+    (godot-rc--inspector-change-property-under-point (eq previous-value :false))))
 
-(defun godot-rc--inspector-insert-bool-property ()
-  (let* ((value godot-rc--inspector-property-value)
-         (value (not (eq value :false))))
-    (magit-insert-section-body
-      (godot-rc--inspector-insert-visible-name)
-      (insert (propertize (if value "TRUE" "FALSE")
-                          'face 'underline
-                          'keymap godot-rc--inspector-bool-keymap
-                          'value value))
-      (insert "\n"))))
+(godot-rc--define-simple-property bool (if (eq godot-rc--inspector-property-value :false) "FALSE" "TRUE") godot-rc--inspector-bool-keymap)
 
 (defvar godot-rc--inspector-int-keymap
   (let ((map (make-sparse-keymap)))
@@ -298,27 +305,16 @@
 
 (defun godot-rc--inspector-int-change ()
   (interactive)
-  (let* ((property-name (get-text-property (point) 'property-name))
-         (new-value (read-number (concat "New value for " property-name ": "))))
-    (godot-rc-request
-     "inspector-change-property"
-     `((object_id . ,(get-text-property (point) 'object-id))
-       (value . ,new-value)
-       (property . ,property-name)))))
+  (let* ((new-value (read-number (concat "New value for " (get-text-property (point)'property-name) ": "))))
+    (godot-rc--inspector-change-property-under-point new-value)))
 
 (defun godot-rc--inspector-insert-int-property ()
   (let ((hint godot-rc--inspector-property-hint))
     (pcase hint
-      ((guard (eq hint godot-rc--property_hint_none)) (godot-rc--inspector-int-number-property))
-      ((guard (eq hint godot-rc--property_hint_enum)) (godot-rc--inspector-int-enum-property)))))
+      ((guard (eq hint godot-rc--property_hint_none)) (godot-rc--inspector-insert-int-number-property))
+      ((guard (eq hint godot-rc--property_hint_enum)) (godot-rc--inspector-insert-int-enum-property)))))
 
-(defun godot-rc--inspector-int-number-property ()
-  (magit-insert-section-body
-    (godot-rc--inspector-insert-visible-name)
-    (insert (propertize (number-to-string godot-rc--inspector-property-value)
-                        'face 'underline
-                        'keymap godot-rc--inspector-int-keymap))
-    (insert "\n")))
+(godot-rc--define-simple-property int-number (number-to-string godot-rc--inspector-property-value) godot-rc--inspector-int-keymap)
 
 (defvar godot-rc--inspector-int-enum-keymap
   (let ((map (make-sparse-keymap)))
@@ -327,25 +323,18 @@
 
 (defun godot-rc--inspector-int-enum-change ()
   (interactive)
-  (let* ((property-name (get-text-property (point) 'property-name))
-         (options (get-text-property (point) 'options))
-         (new-option (completing-read (concat "New value for " property-name ": ") options))
+  (let* ((options (get-text-property (point) 'options))
+         (new-option (completing-read (concat "New value for " (get-text-property (point) 'property-name) ": ") options))
          (new-value (cl-position new-option options :test 'equal)))
-    (godot-rc-request
-     "inspector-change-property"
-     `((object_id . ,(get-text-property (point) 'object-id))
-       (value . ,new-value)
-       (property . ,property-name)))))
+    (godot-rc--inspector-change-property-under-point new-value)))
 
-(defun godot-rc--inspector-int-enum-property ()
+(defun godot-rc--inspector-insert-int-enum-property ()
   (let ((enum-options (split-string godot-rc--inspector-property-hint-string ",")))
-    (magit-insert-section-body
-      (godot-rc--inspector-insert-visible-name)
-      (insert (propertize (nth godot-rc--inspector-property-value enum-options)
-                          'face 'underline
-                          'keymap godot-rc--inspector-int-enum-keymap
-                          'options enum-options))
-      (insert "\n"))))
+    (godot-rc--inspector-simple-body
+     (insert (propertize (nth godot-rc--inspector-property-value enum-options)
+                         'face 'underline
+                         'keymap godot-rc--inspector-int-enum-keymap
+                         'options enum-options)))))
 
 ;; (defvar godot-rc--inspector-vector3-keymap
 ;;   (let ((map (make-sparse-keymap)))
@@ -364,11 +353,7 @@
   (let* ((property-name (get-text-property (point) 'property-name))
          (field (get-text-property (point) 'field))
          (new-value (read-number "New value: ")))
-    (godot-rc-request
-     "inspector-change-property"
-     `((object_id . ,(get-text-property (point) 'object-id))
-       (value . ,new-value)
-       (property . (,property-name ,field))))))
+    (godot-rc--inspector-change-property-under-point new-value (list property-name field))))
 
 (defmacro godot-rc--inspector-vector-definitions-macro (name &rest fields)
   (let ((fun-name (intern (format "godot-rc--inspector-insert-%s-property" name))))
@@ -399,24 +384,13 @@
 
 (defun godot-rc--inspector-string-change ()
   (interactive)
-  (let* ((property-name (get-text-property (point) 'property-name))
-         (old-string (get-text-property (point) 'value))
+  (let* ((old-string (get-text-property (point) 'value))
          (new-string (read-string "New string: " old-string)))
-    (godot-rc-request
-     "inspector-change-property"
-     `((object_id . ,(get-text-property (point) 'object-id))
-       (value . ,new-string)
-       (property . ,property-name)))))
+    (godot-rc--inspector-change-property-under-point new-string)))
 
-(defun godot-rc--inspector-insert-string-property ()
-  (magit-insert-section-body
-    (godot-rc--inspector-insert-visible-name)
-    (insert
-     (propertize
-      (if (string-equal godot-rc--inspector-property-value "") "EMPTY" godot-rc--inspector-property-value)
-      'face 'underline
-      'keymap godot-rc--inspector-string-keymap))
-    (insert "\n")))
+(godot-rc--define-simple-property string
+                                  (if (string-equal godot-rc--inspector-property-value "") "EMPTY" godot-rc--inspector-property-value)
+                                  godot-rc--inspector-string-keymap)
 
 (defvar godot-rc--inspector-float-keymap
   (let ((map (make-sparse-keymap)))
@@ -425,58 +399,43 @@
 
 (defun godot-rc--inspector-float-change ()
   (interactive)
-  (let* ((property-name (get-text-property (point) 'property-name))
-         (new-value (read-number (concat "New value for " property-name ": "))))
-    (godot-rc-request
-     "inspector-change-property"
-     `((object_id . ,(get-text-property (point) 'object-id))
-       (value . ,new-value)
-       (property . ,property-name)))))
+  (let* ((new-value (read-number (concat "New value for " (get-text-property (point) 'property-name) ": "))))
+    (godot-rc--inspector-change-property-under-point new-value)))
 
-(defun godot-rc--inspector-insert-float-property ()
-  (magit-insert-section-body
-    (godot-rc--inspector-insert-visible-name)
-    (insert (propertize (number-to-string godot-rc--inspector-property-value)
-                        'face 'underline
-                        'keymap godot-rc--inspector-float-keymap))
-    (insert "\n")))
+(godot-rc--define-simple-property float (number-to-string godot-rc--inspector-property-value) godot-rc--inspector-float-keymap)
 
-(defvar godot-rc--inspector-color-keymap
-  (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "c") #'godot-rc--inspector-color-change)
-    map))
+;; (defvar godot-rc--inspector-color-keymap
+;;   (let ((map (make-sparse-keymap)))
+;;     (define-key map (kbd "c") #'godot-rc--inspector-color-change)
+;;     map))
 
-(defun godot-rc--inspector-color-change ()
-  (interactive))
+;; (defun godot-rc--inspector-color-change ()
+;;   (interactive))
 
 (defun godot-rc--inspector-insert-color-property ()
   (let* ((split
           (string-split
            (string-trim godot-rc--inspector-property-value "[()]" "[()]") ", "))
          (r (nth 0 split)) (g (nth 1 split)) (b (nth 2 split)) (a (nth 3 split)))
-    (magit-insert-section-body
-      (godot-rc--inspector-insert-visible-name)
-      (insert (propertize r 'face 'underline 'keymap
-                          godot-rc--inspector-vector-component-keymap 'field 'r))
-      (insert " ")
-      (insert (propertize g 'face 'underline 'keymap
-                          godot-rc--inspector-vector-component-keymap 'field 'g))
-      (insert " ")
-      (insert (propertize b 'face 'underline 'keymap
-                          godot-rc--inspector-vector-component-keymap 'field 'b))
-      (insert " ")
-      (insert (propertize a 'face 'underline 'keymap
-                          godot-rc--inspector-vector-component-keymap 'field 'a))
-      (insert " ")
-      (insert "\n"))))
+    (godot-rc--inspector-simple-body
+     (insert (propertize r 'face 'underline 'keymap
+                         godot-rc--inspector-vector-component-keymap 'field 'r))
+     (insert " ")
+     (insert (propertize g 'face 'underline 'keymap
+                         godot-rc--inspector-vector-component-keymap 'field 'g))
+     (insert " ")
+     (insert (propertize b 'face 'underline 'keymap
+                         godot-rc--inspector-vector-component-keymap 'field 'b))
+     (insert " ")
+     (insert (propertize a 'face 'underline 'keymap
+                         godot-rc--inspector-vector-component-keymap 'field 'a)))))
 
-(defun godot-rc--inspector-insert-unsupported-property (_data)
-  (magit-insert-section-body
-    (godot-rc--inspector-insert-visible-name)
-    (insert "UNSUPPORTED"
-            " type: " (number-to-string godot-rc--inspector-property-type)
-            " hint:" (number-to-string godot-rc--inspector-property-hint)
-            " hint_string: " godot-rc--inspector-property-hint-string "\n")))
+(godot-rc--define-simple-property unsupported
+                                  (concat "UNSUPPORTED"
+                                          " type: " (number-to-string godot-rc--inspector-property-type)
+                                          " hint:" (number-to-string godot-rc--inspector-property-hint)
+                                          " hint_string: " godot-rc--inspector-property-hint-string)
+                                  nil)
 
 (godot-rc-add-notification-handler "property-changed" #'godot-rc--inspector-on-property-changed)
 
