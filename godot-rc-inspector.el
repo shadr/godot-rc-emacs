@@ -192,7 +192,6 @@
          (godot-rc--inspector-insert-sections data))
        (pop-to-buffer (current-buffer))))))
 
-
 (defun godot-rc--inspector-insert-sections (data)
   (erase-buffer)
   (remove-overlays)
@@ -220,7 +219,6 @@
 
       (when children
         (dolist (child children) (godot-rc--inspector-insert-section child))))))
-
 
 (defun godot-rc--inspector-insert-grouping-section (data)
   (let* ((name (gethash "name" data))
@@ -253,6 +251,7 @@
       ((guard (eq type godot-rc--variant-type-vector3)) (godot-rc--inspector-insert-vector3-property))
       ((guard (eq type godot-rc--variant-type-vector4)) (godot-rc--inspector-insert-vector4-property))
       ((guard (eq type godot-rc--variant-type-string)) (godot-rc--inspector-insert-string-property))
+      ((guard (eq type godot-rc--variant-type-color)) (godot-rc--inspector-insert-color-property))
       (_ (godot-rc--inspector-insert-unsupported-property data)))
     (if (eq start (point))
         (message (concat "warning: property " godot-rc--inspector-property-name " didn't show up in inspector, hint: " (number-to-string godot-rc--inspector-property-hint))))
@@ -312,7 +311,6 @@
     (pcase hint
       ((guard (eq hint godot-rc--property_hint_none)) (godot-rc--inspector-int-number-property))
       ((guard (eq hint godot-rc--property_hint_enum)) (godot-rc--inspector-int-enum-property)))))
-
 
 (defun godot-rc--inspector-int-number-property ()
   (magit-insert-section-body
@@ -442,6 +440,35 @@
                         'face 'underline
                         'keymap godot-rc--inspector-float-keymap))
     (insert "\n")))
+
+(defvar godot-rc--inspector-color-keymap
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "c") #'godot-rc--inspector-color-change)
+    map))
+
+(defun godot-rc--inspector-color-change ()
+  (interactive))
+
+(defun godot-rc--inspector-insert-color-property ()
+  (let* ((split
+          (string-split
+           (string-trim godot-rc--inspector-property-value "[()]" "[()]") ", "))
+         (r (nth 0 split)) (g (nth 1 split)) (b (nth 2 split)) (a (nth 3 split)))
+    (magit-insert-section-body
+      (godot-rc--inspector-insert-visible-name)
+      (insert (propertize r 'face 'underline 'keymap
+                          godot-rc--inspector-vector-component-keymap 'field 'r))
+      (insert " ")
+      (insert (propertize g 'face 'underline 'keymap
+                          godot-rc--inspector-vector-component-keymap 'field 'g))
+      (insert " ")
+      (insert (propertize b 'face 'underline 'keymap
+                          godot-rc--inspector-vector-component-keymap 'field 'b))
+      (insert " ")
+      (insert (propertize a 'face 'underline 'keymap
+                          godot-rc--inspector-vector-component-keymap 'field 'a))
+      (insert " ")
+      (insert "\n"))))
 
 (defun godot-rc--inspector-insert-unsupported-property (_data)
   (magit-insert-section-body
