@@ -22,6 +22,9 @@
 ;; TODO: add checks for supported type and hint combinations
 ;; TODO: show number of changed properties in heading when it is collapsed
 ;; TODO: feat: function for reseting property to its default value
+;; TODO: store scene and node path, use them instead of object id for referencing properties
+;; TODO: collapse groups by default, remember which groups were opened before refresh, before closing inspector
+;; TODO: render script property outside of all categories
 
 (require 'magit-section)
 (require 'f)
@@ -152,10 +155,31 @@
 (defconst godot-rc--property_usage_secret (ash 1 29))
 
 (define-derived-mode inspector-mode magit-section-mode "INSPECTOR"
-  (evil-define-key 'normal inspector-mode-map (kbd "R") #'godot-rc-inspector-refresh-buffer))
+  (evil-define-key 'normal inspector-mode-map (kbd "R") #'godot-rc-inspector-refresh-buffer)
+  (define-key inspector-mode-map [remap magit-section-toggle] #'godot-rc--inspector-section-toggle))
+
+(defun godot-rc--inspector-section-toggle (section)
+  (interactive (list (magit-current-section)))
+  (when (oref section hidden)
+    (when (string-equal "object" (get-text-property (oref section start) 'type))
+      (let ((opened-list (gethash godot-rc--inspector-object-id godot-rc--inspector-open-groups))
+            (value (get-text-property (oref section start) 'value)))
+        (when (when (and (numberp value) (not (member value opened-list)))
+                (cl-pushnew value opened-list)
+                (puthash godot-rc--inspector-object-id opened-list godot-rc--inspector-open-groups)
+                t)
+          (godot-rc-inspector-refresh-buffer)))))
+  (magit-section-toggle section))
 
 (defun godot-rc--get-object-properties (object-id callback)
-  (godot-rc-request-callback "object-properties" `((object_id . ,object-id) (opened_props . ())) callback))
+  (godot-rc-request-callback
+   "object-properties"
+   `((object_id . ,object-id)
+     ;; (scene_path . "scene-path")
+     ;; (node_path . "node-path")
+     ;; (opened_objects . "objects")
+     (opened_props . ,(mapcar #'number-to-string (gethash object-id godot-rc--inspector-open-groups))))
+   callback))
 
 (defun godot-rc-node-open-inspector ()
   (interactive)
@@ -186,7 +210,7 @@
        (pop-to-buffer-same-window (current-buffer))))))
 
 (defun godot-rc--inspector-visibility-hook (section)
-  'hide)
+  'show)
 
 (defun godot-rc--inspector-insert-sections-nested (data object-id)
   (let ((start (point)))
@@ -204,8 +228,9 @@
 (defun godot-rc--inspector-insert-section (data object-id)
   (let* ((visible-name (gethash "visible_name" data))
          (children (gethash "children" data)))
-    (when children (godot-rc--inspector-insert-grouping-section data object-id))
-    (when visible-name (godot-rc--inspector-insert-property-section data object-id))))
+    (cond
+     (visible-name (godot-rc--inspector-insert-property-section data object-id))
+     (children (godot-rc--inspector-insert-grouping-section data object-id)))))
 
 (defun godot-rc--inspector-insert-category-section (data object-id)
   (let* ((name (gethash "name" data))
@@ -223,7 +248,6 @@
           (when children
             (dolist (child children) (godot-rc--inspector-insert-section child object-id)))
           (put-text-property start (point) 'object-id object-id))))))
-
 
 (defun godot-rc--inspector-insert-grouping-section (data object-id)
   (let* ((name (gethash "name" data))
@@ -466,24 +490,18 @@
      (insert (propertize a 'face 'underline 'keymap
                          godot-rc--inspector-vector-component-keymap 'field 'a)))))
 
-(defun godot-rc--inspector-insert-object-property (data object-id))
-
-
-;; (magit-insert-section (magit-section nil t)
-;;   (magit-insert-heading "  Something")
-;;   (magit-insert-section-body
-;;     (insert "  ASDASDASDASD ")
-;;     (magit-insert-section (magit-section)
-;;       (magit-insert-heading "NESTED")
-;;       (magit-insert-section-body (insert "   NESTED BODY\n")))
-;;     (insert "  123412341234\n"))))
-;; (when (numberp godot-rc--inspector-property-value)
-;;   (godot-rc-request-callback
-;;    "object-properties"
-;;    `((object_id . ,(number-to-string godot-rc--inspector-property-value)))
-;;    (lambda (result)
-;;      (let ((inhibit-read-only t))
-;;        (godot-rc--inspector-insert-sections-nested result))))))
+(defun godot-rc--inspector-insert-object-property (data object-id)
+  (magit-insert-section (magit-section)
+    (let ((start (point)))
+      (magit-insert-heading
+        (make-string (* 2 (- (godot-rc--magit-section-depth magit-insert-section--current) 1)) ?\s)
+        (gethash "visible_name" data))
+      (put-text-property start (point) 'type 'object))
+    (let ((children (gethash "children" data)))
+      (godot-rc--magit-insert-section-body
+       (gethash "value" data)
+       (when children
+         (dolist (child children) (godot-rc--inspector-insert-section child object-id)))))))
 
 (godot-rc--define-simple-property unsupported
                                   (concat "UNSUPPORTED"
