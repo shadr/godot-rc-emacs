@@ -21,6 +21,7 @@
 ;; TODO: create single function for changing property value, store specific change-property functions in text properties
 ;; TODO: add checks for supported type and hint combinations
 ;; TODO: show number of changed properties in heading when it is collapsed
+;; TODO: feat: function for reseting property to its default value
 
 (require 'magit-section)
 (require 'f)
@@ -30,6 +31,7 @@
 (require 'godot-rc-utils)
 
 (defvar godot-rc--inspector-object-id nil)
+(defvar godot-rc--inspector-open-groups (make-hash-table))
 
 (defconst godot-rc--variant-type-nil 0)
 (defconst godot-rc--variant-type-bool 1) ; done
@@ -168,8 +170,8 @@
      (lambda (data)
        (with-current-buffer (get-buffer "*inspector*")
 
-         (let ((inhibit-read-only t) (p (point)))
-           (godot-rc--inspector-insert-sections data)
+         (let ((p (point)))
+           (godot-rc--inspector-insert-sections data godot-rc--inspector-object-id)
            (goto-char p)))))))
 
 (defun godot-rc--open-inspector (object-id)
@@ -179,25 +181,33 @@
      (with-current-buffer (get-buffer-create "*inspector*")
        (inspector-mode)
        (setq-local godot-rc--inspector-object-id object-id)
-       (let ((inhibit-read-only t))
-         (godot-rc--inspector-insert-sections data))
-       (pop-to-buffer (current-buffer))))))
+       (add-hook 'magit-section-set-visibility-hook #'godot-rc--inspector-visibility-hook 0 t)
+       (godot-rc--inspector-insert-sections data object-id)
+       (pop-to-buffer-same-window (current-buffer))))))
 
-(defun godot-rc--inspector-insert-sections (data)
-  (erase-buffer)
-  (remove-overlays)
+(defun godot-rc--inspector-visibility-hook (section)
+  'hide)
+
+(defun godot-rc--inspector-insert-sections-nested (data object-id)
   (let ((start (point)))
     (magit-insert-section (magit-section "inspector-root")
-      (dolist (d data) (godot-rc--inspector-insert-category-section d)))
+      (dolist (d data) (godot-rc--inspector-insert-category-section d object-id)))
     (put-text-property start (point) 'object-id godot-rc--inspector-object-id)))
 
-(defun godot-rc--inspector-insert-section (data)
+(defun godot-rc--inspector-insert-sections (data object-id)
+  (let ((inhibit-read-only t))
+    (erase-buffer)
+    (remove-overlays)
+    (godot-rc--inspector-insert-sections-nested data object-id)))
+
+
+(defun godot-rc--inspector-insert-section (data object-id)
   (let* ((visible-name (gethash "visible_name" data))
          (children (gethash "children" data)))
-    (when children (godot-rc--inspector-insert-grouping-section data))
-    (when visible-name (godot-rc--inspector-insert-property-section data))))
+    (when children (godot-rc--inspector-insert-grouping-section data object-id))
+    (when visible-name (godot-rc--inspector-insert-property-section data object-id))))
 
-(defun godot-rc--inspector-insert-category-section (data)
+(defun godot-rc--inspector-insert-category-section (data object-id)
   (let* ((name (gethash "name" data))
          (children (gethash "children" data)))
     (magit-insert-section (magit-section `(:type 'category))
@@ -208,34 +218,40 @@
               (propertize "@" 'display (create-image icon-path nil nil :ascent 'center))))
         name)
 
-      (when children
-        (dolist (child children) (godot-rc--inspector-insert-section child))))))
+      (magit-insert-section-body
+        (let ((start (point)))
+          (when children
+            (dolist (child children) (godot-rc--inspector-insert-section child object-id)))
+          (put-text-property start (point) 'object-id object-id))))))
 
-(defun godot-rc--inspector-insert-grouping-section (data)
+
+(defun godot-rc--inspector-insert-grouping-section (data object-id)
   (let* ((name (gethash "name" data))
-         (children (gethash "children" data)))
+         (children (gethash "children" data))
+         (start (point)))
     (magit-insert-section (magit-section `(:type 'grouping))
-      :hide t
       (magit-insert-heading
         (make-string (* 2 (- (godot-rc--magit-section-depth magit-insert-section--current) 1)) ?\s)
         name)
+      (magit-insert-section-body
+        (when children
+          (dolist (child children) (godot-rc--inspector-insert-section child object-id)))))
+    (put-text-property start (point) 'object-id object-id)))
 
-      (when children
-        (dolist (child children) (godot-rc--inspector-insert-section child))))))
-
-(defun godot-rc--inspector-insert-property-section (data)
+(defun godot-rc--inspector-insert-property-section (data object-id)
   (let* ((type (gethash "type" data))
          (start (point)))
     (pcase type
-      ((guard (eq type godot-rc--variant-type-bool)) (godot-rc--inspector-insert-bool-property data))
-      ((guard (eq type godot-rc--variant-type-int)) (godot-rc--inspector-insert-int-property data))
-      ((guard (eq type godot-rc--variant-type-float)) (godot-rc--inspector-insert-float-property data))
-      ((guard (eq type godot-rc--variant-type-vector2)) (godot-rc--inspector-insert-vector2-property data))
-      ((guard (eq type godot-rc--variant-type-vector3)) (godot-rc--inspector-insert-vector3-property data))
-      ((guard (eq type godot-rc--variant-type-vector4)) (godot-rc--inspector-insert-vector4-property data))
-      ((guard (eq type godot-rc--variant-type-string)) (godot-rc--inspector-insert-string-property data))
-      ((guard (eq type godot-rc--variant-type-color)) (godot-rc--inspector-insert-color-property data))
-      (_ (godot-rc--inspector-insert-unsupported-property data)))
+      ((guard (eq type godot-rc--variant-type-bool)) (godot-rc--inspector-insert-bool-property data object-id))
+      ((guard (eq type godot-rc--variant-type-int)) (godot-rc--inspector-insert-int-property data object-id))
+      ((guard (eq type godot-rc--variant-type-float)) (godot-rc--inspector-insert-float-property data object-id))
+      ((guard (eq type godot-rc--variant-type-vector2)) (godot-rc--inspector-insert-vector2-property data object-id))
+      ((guard (eq type godot-rc--variant-type-vector3)) (godot-rc--inspector-insert-vector3-property data object-id))
+      ((guard (eq type godot-rc--variant-type-vector4)) (godot-rc--inspector-insert-vector4-property data object-id))
+      ((guard (eq type godot-rc--variant-type-string)) (godot-rc--inspector-insert-string-property data object-id))
+      ((guard (eq type godot-rc--variant-type-color)) (godot-rc--inspector-insert-color-property data object-id))
+      ((guard (eq type godot-rc--variant-type-object)) (godot-rc--inspector-insert-object-property data object-id))
+      (_ (godot-rc--inspector-insert-unsupported-property data object-id)))
     (when (eq start (point))
       (message (concat "warning: property " (gethash "property" data) " didn't show up in inspector, hint: " (number-to-string (gethash "hint" data)))))
     (put-text-property start (point) 'property-name (gethash "property" data))
@@ -257,16 +273,23 @@
      (property . ,property)
      (value . ,value))))
 
-(defmacro godot-rc--inspector-simple-body (data &rest body)
-  `(magit-insert-section-body
-     (godot-rc--inspector-insert-visible-name ,data)
-     (progn ,@body)
-     (insert "\n")))
+(defmacro godot-rc--magit-insert-section-body (object-id &rest body)
+  `(let ((start (point)))
+     (magit-insert-section-body ,@body)
+     (put-text-property start (point) 'object-id ,object-id)))
+
+(defmacro godot-rc--inspector-simple-body (data object-id &rest body)
+  `(godot-rc--magit-insert-section-body
+    ,object-id
+    (godot-rc--inspector-insert-visible-name ,data)
+    (progn ,@body)
+    (insert "\n")))
 
 (defmacro godot-rc--define-simple-property (name form keymap)
-  `(defun ,(intern (format "godot-rc--inspector-insert-%s-property" name)) (data)
+  `(defun ,(intern (format "godot-rc--inspector-insert-%s-property" name)) (data object-id)
      (godot-rc--inspector-simple-body
       data
+      object-id
       (insert (propertize ,form
                           'face 'underline
                           'keymap ,keymap)))))
@@ -293,12 +316,12 @@
   (let* ((new-value (read-number (concat "New value for " (get-text-property (point)'property-name) ": "))))
     (godot-rc--inspector-change-property-under-point new-value)))
 
-(defun godot-rc--inspector-insert-int-property (data)
+(defun godot-rc--inspector-insert-int-property (data object-id)
   (let ((hint (gethash "hint" data)))
     (pcase hint
-      ((guard (eq hint godot-rc--property_hint_none)) (godot-rc--inspector-insert-int-number-property data))
-      ((guard (eq hint godot-rc--property_hint_range)) (godot-rc--inspector-insert-int-range-property data))
-      ((guard (eq hint godot-rc--property_hint_enum)) (godot-rc--inspector-insert-int-enum-property data)))))
+      ((guard (eq hint godot-rc--property_hint_none)) (godot-rc--inspector-insert-int-number-property data object-id))
+      ((guard (eq hint godot-rc--property_hint_range)) (godot-rc--inspector-insert-int-range-property data object-id))
+      ((guard (eq hint godot-rc--property_hint_enum)) (godot-rc--inspector-insert-int-enum-property data object-id)))))
 
 (godot-rc--define-simple-property int-number (number-to-string (gethash "value" data)) godot-rc--inspector-int-keymap)
 
@@ -314,10 +337,11 @@
          (new-value (cl-position new-option options :test 'equal)))
     (godot-rc--inspector-change-property-under-point new-value)))
 
-(defun godot-rc--inspector-insert-int-enum-property (data)
+(defun godot-rc--inspector-insert-int-enum-property (data object-id)
   (let ((enum-options (split-string (gethash "hint_string" data) ",")))
     (godot-rc--inspector-simple-body
      data
+     object-id
      (insert (propertize (nth (gethash "value" data) enum-options)
                          'face 'underline
                          'keymap godot-rc--inspector-int-enum-keymap
@@ -336,13 +360,14 @@
          (new-value (read-number (format "New value [%s..%s]: " min-value max-value))))
     (godot-rc--inspector-change-property-under-point new-value)))
 
-(defun godot-rc--inspector-insert-int-range-property (data)
-  (magit-insert-section-body
-    (godot-rc--inspector-insert-visible-name data)
-    (insert (propertize (number-to-string (gethash "value" data))
-                        'face 'underline
-                        'keymap godot-rc--inspector-int-range-keymap))
-    (insert "\n")))
+(defun godot-rc--inspector-insert-int-range-property (data object-id)
+  (godot-rc--magit-insert-section-body
+   object-id
+   (godot-rc--inspector-insert-visible-name data)
+   (insert (propertize (number-to-string (gethash "value" data))
+                       'face 'underline
+                       'keymap godot-rc--inspector-int-range-keymap))
+   (insert "\n")))
 
 ;; (defvar godot-rc--inspector-vector3-keymap
 ;;   (let ((map (make-sparse-keymap)))
@@ -365,21 +390,22 @@
 
 (defmacro godot-rc--inspector-vector-definitions-macro (name &rest fields)
   (let ((fun-name (intern (format "godot-rc--inspector-insert-%s-property" name))))
-    `(defun ,fun-name (data)
+    `(defun ,fun-name (data object-id)
        (let* ((split (string-split (string-trim (gethash "value" data) "[\(\)]" "[\(\)]") ", "))
               ,@(cl-loop for field in fields
                          for i from 0
                          collect `(,field (nth ,i split))))
 
-         (magit-insert-section-body
-           (godot-rc--inspector-insert-visible-name data)
-           ,@(cl-loop for field in fields
-                      collect `(insert (propertize ,field
-                                                   'face 'underline
-                                                   'keymap godot-rc--inspector-vector-component-keymap
-                                                   'field ',field))
-                      collect `(insert " "))
-           (insert "\n"))))))
+         (godot-rc--magit-insert-section-body
+          object-id
+          (godot-rc--inspector-insert-visible-name data)
+          ,@(cl-loop for field in fields
+                     collect `(insert (propertize ,field
+                                                  'face 'underline
+                                                  'keymap godot-rc--inspector-vector-component-keymap
+                                                  'field ',field))
+                     collect `(insert " "))
+          (insert "\n"))))))
 
 (godot-rc--inspector-vector-definitions-macro vector2 x y)
 (godot-rc--inspector-vector-definitions-macro vector3 x y z)
@@ -420,13 +446,14 @@
 ;; (defun godot-rc--inspector-color-change ()
 ;;   (interactive))
 
-(defun godot-rc--inspector-insert-color-property (data)
+(defun godot-rc--inspector-insert-color-property (data object-id)
   (let* ((split
           (string-split
            (string-trim (gethash "value" data) "[()]" "[()]") ", "))
          (r (nth 0 split)) (g (nth 1 split)) (b (nth 2 split)) (a (nth 3 split)))
     (godot-rc--inspector-simple-body
      data
+     object-id
      (insert (propertize r 'face 'underline 'keymap
                          godot-rc--inspector-vector-component-keymap 'field 'r))
      (insert " ")
@@ -438,6 +465,25 @@
      (insert " ")
      (insert (propertize a 'face 'underline 'keymap
                          godot-rc--inspector-vector-component-keymap 'field 'a)))))
+
+(defun godot-rc--inspector-insert-object-property (data object-id))
+
+
+;; (magit-insert-section (magit-section nil t)
+;;   (magit-insert-heading "  Something")
+;;   (magit-insert-section-body
+;;     (insert "  ASDASDASDASD ")
+;;     (magit-insert-section (magit-section)
+;;       (magit-insert-heading "NESTED")
+;;       (magit-insert-section-body (insert "   NESTED BODY\n")))
+;;     (insert "  123412341234\n"))))
+;; (when (numberp godot-rc--inspector-property-value)
+;;   (godot-rc-request-callback
+;;    "object-properties"
+;;    `((object_id . ,(number-to-string godot-rc--inspector-property-value)))
+;;    (lambda (result)
+;;      (let ((inhibit-read-only t))
+;;        (godot-rc--inspector-insert-sections-nested result))))))
 
 (godot-rc--define-simple-property unsupported
                                   (concat "UNSUPPORTED"
