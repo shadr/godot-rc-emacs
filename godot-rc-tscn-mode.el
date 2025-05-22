@@ -12,8 +12,8 @@
 ;;; Code:
 
 (require 'magit-section)
-(require 'projectile)
 (require 'f)
+(require 'project)
 
 (require 'godot-rc-core)
 (require 'godot-rc-utils)
@@ -245,13 +245,16 @@
 ;;;###autoload
 (defun godot-rc-open-scene ()
   (interactive)
-  (let ((file
-         (projectile-completing-read
-          "Scene: "
-          (seq-filter
-           (lambda (f) (string-suffix-p ".tscn" f))
-           (projectile-current-project-files)))))
-    (godot-rc-edit-scene (projectile-expand-root file))))
+  (let* ((pr (project-current t))
+         (project-files-relative-names t)
+         (root (project-root pr))
+         (dirs (list root))
+         (files (project-files pr dirs))
+         (filtered-files (seq-filter
+                          (lambda (f) (string-suffix-p ".tscn" f))
+                          files))
+         (file (project--read-file-name pr "Find scene" filtered-files nil 'file-name-history)))
+    (godot-rc-edit-scene file)))
 
 (provide 'godot-rc-tscn-mode)
 ;;; godot-rc-tscn-mode.el ends here
