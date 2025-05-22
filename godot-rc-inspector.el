@@ -17,7 +17,7 @@
 ;; TODO: add keymap for the whole property text row instead of only value
 ;; TODO: feat: support math in number properties
 ;; TODO: fix: support explicit enum values, they can be stored in hint_string as "Zero,One,Three:3,Four,Six:6"
-;; TODO: create single function for changing property value, store specific change-property functions in text properties
+;; TODO: maybe? create single function for changing property value, store specific change-property functions in text properties
 ;; TODO: add checks for supported type and hint combinations
 ;; TODO: show number of changed properties in heading when it is collapsed
 ;; TODO: feat: function for reseting property to its default value
@@ -30,7 +30,6 @@
 
 (require 'magit-section)
 (require 'f)
-(require 'evil)
 
 (require 'godot-rc-core)
 (require 'godot-rc-utils)
@@ -156,9 +155,16 @@
 (defconst godot-rc--property_usage_read_only (ash 1 28))
 (defconst godot-rc--property_usage_secret (ash 1 29))
 
-(define-derived-mode inspector-mode magit-section-mode "INSPECTOR"
-  (evil-define-key 'normal inspector-mode-map (kbd "R") #'godot-rc-inspector-refresh-buffer)
-  (define-key inspector-mode-map [remap magit-section-toggle] #'godot-rc--inspector-section-toggle))
+(defvar inspector-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map [remap magit-section-toggle] #'godot-rc--inspector-section-toggle)
+    map))
+
+(declare-function evil-define-key "evil")
+(with-eval-after-load 'evil
+  (evil-define-key 'normal inspector-mode-map (kbd "R") #'godot-rc-inspector-refresh-buffer))
+
+(define-derived-mode inspector-mode magit-section-mode "INSPECTOR")
 
 (defun godot-rc--inspector-section-toggle (section)
   (interactive (list (magit-current-section)))

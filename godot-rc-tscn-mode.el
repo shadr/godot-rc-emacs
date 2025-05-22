@@ -12,7 +12,6 @@
 ;;; Code:
 
 (require 'magit-section)
-(require 'evil)
 (require 'projectile)
 (require 'f)
 
@@ -21,22 +20,30 @@
 
 (defvar godot-rc--tscn-scene-path nil)
 
+(defvar tscn-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map [remap save-buffer] #'godot-rc-tscn-save-scene)
+    map))
+
+(declare-function evil-define-key "evil")
+(with-eval-after-load 'evil
+  (evil-define-key 'normal tscn-mode-map
+    (kbd "o") #'godot-rc-open-scene
+    (kbd "r") #'godot-rc-tscn-rename-node
+    (kbd "c") #'godot-rc-tscn-change-node-type
+    (kbd "R") #'godot-rc-tscn-refresh-buffer
+    (kbd "D") #'godot-rc-tscn-delete-node
+    (kbd "d") #'godot-rc-tscn-duplicate-node
+    (kbd "a") #'godot-rc-tscn-add-sibling-node
+    (kbd "A") #'godot-rc-tscn-add-child-node
+    (kbd "C-j") #'godot-rc-tscn-move-node-down
+    (kbd "C-k") #'godot-rc-tscn-move-node-up
+    (kbd ">") #'godot-rc-tscn-move-node-in
+    (kbd "<") #'godot-rc-tscn-move-node-out
+    (kbd "RET") #'godot-rc-node-open-inspector))
+
 ;;;###autoload
-(define-derived-mode tscn-mode magit-section-mode "TSCN"
-  (define-key tscn-mode-map [remap save-buffer] #'godot-rc-tscn-save-scene)
-  (evil-define-key 'normal tscn-mode-map (kbd "o") #'godot-rc-open-scene)
-  (evil-define-key 'normal tscn-mode-map (kbd "r") #'godot-rc-tscn-rename-node)
-  (evil-define-key 'normal tscn-mode-map (kbd "c") #'godot-rc-tscn-change-node-type)
-  (evil-define-key 'normal tscn-mode-map (kbd "R") #'godot-rc-tscn-refresh-buffer)
-  (evil-define-key 'normal tscn-mode-map (kbd "D") #'godot-rc-tscn-delete-node)
-  (evil-define-key 'normal tscn-mode-map (kbd "d") #'godot-rc-tscn-duplicate-node)
-  (evil-define-key 'normal tscn-mode-map (kbd "a") #'godot-rc-tscn-add-sibling-node)
-  (evil-define-key 'normal tscn-mode-map (kbd "A") #'godot-rc-tscn-add-child-node)
-  (evil-define-key 'normal tscn-mode-map (kbd "C-j") #'godot-rc-tscn-move-node-down)
-  (evil-define-key 'normal tscn-mode-map (kbd "C-k") #'godot-rc-tscn-move-node-up)
-  (evil-define-key 'normal tscn-mode-map (kbd "C-l") #'godot-rc-tscn-move-node-in)
-  (evil-define-key 'normal tscn-mode-map (kbd "C-h") #'godot-rc-tscn-move-node-out)
-  (evil-define-key 'normal tscn-mode-map (kbd "RET") #'godot-rc-node-open-inspector))
+(define-derived-mode tscn-mode magit-section-mode "TSCN")
 
 (defun godot-rc--check-not-root (message)
   (let ((current-id (magit-section-ident-value (magit-current-section)))
