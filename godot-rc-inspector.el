@@ -26,6 +26,7 @@
 ;; TODO: render script property outside of all categories
 ;; TODO: receive layers names and show them in minibuffer when hovering over a layer index
 ;; TODO: merge category and grouping functions, accept optional 'insert-icon' argument
+;; TODO: pass object-id always as strings to avoid float precision errors
 
 (require 'magit-section)
 (require 'f)
@@ -280,6 +281,7 @@
       ((guard (eq type godot-rc--variant-type-color)) (godot-rc--inspector-insert-color-property data object-id))
       ((guard (eq type godot-rc--variant-type-object)) (godot-rc--inspector-insert-object-property data object-id))
       ((guard (eq type godot-rc--variant-type-aabb)) (godot-rc--inspector-insert-aabb-property data object-id))
+      ((guard (eq type godot-rc--variant-type-node_path)) (godot-rc--inspector-insert-node-path-property data object-id))
       (_ (godot-rc--inspector-insert-unsupported-property data object-id)))
     (when (eq start (point))
       (message (concat "warning: property " (gethash "property" data) " didn't show up in inspector, hint: " (number-to-string (gethash "hint" data)))))
@@ -604,6 +606,35 @@
      (insert " ")
      (insert (propertize (number-to-string d) 'face 'underline 'keymap
                          godot-rc--inspector-vector-component-keymap 'field 'size:z)))))
+
+(defvar godot-rc--inspector-node-path-keymap
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "c") #'godot-rc--inspector-node-path-change)
+    map))
+
+(defun godot-rc--inspector-node-path-change ()
+  (interactive)
+  (godot-rc-request-callback
+   "inspector-query-node-paths"
+   `((object_id . ,(get-text-property (point) 'object-id))
+     (classes . ,(string-split (get-text-property (point) 'hint-string) ",")))
+   (lambda (result)
+     (if result
+         (let ((new-value (completing-read "New NodePath: " result)))
+           (godot-rc--inspector-change-property-under-point new-value))
+       (message "No suitable nodes found in a scene")))))
+
+(defun godot-rc--inspector-insert-node-path-property (data object-id)
+  (let* ((target-node (gethash "additional_info" data)))
+    (godot-rc--inspector-simple-body
+     data object-id
+     (if target-node
+         (progn
+           (let ((icon-path (f-join godot-rc--base-dir "godot-icons" (concat (gethash "type" target-node) ".svg"))))
+             (when (file-exists-p icon-path)
+               (insert (propertize "@" 'display (create-image icon-path nil nil :ascent 'center)))))
+           (insert (propertize (gethash "name" target-node) 'face 'underline 'keymap godot-rc--inspector-node-path-keymap)))
+       (insert (propertize "<empty>" 'face 'underline 'keymap godot-rc--inspector-node-path-keymap))))))
 
 (godot-rc--define-simple-property unsupported
                                   (concat "UNSUPPORTED"
