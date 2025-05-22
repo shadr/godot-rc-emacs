@@ -54,7 +54,7 @@
 (defun godot-rc--on-response (parsed)
   (let* ((result (gethash "result" parsed))
          (id (gethash "id" parsed)))
-    (when (and result id)
+    (when id
       (if-let ((callback (gethash id godot-rc--response-callbacks)))
           (funcall callback result)))
     (remhash id godot-rc--response-callbacks)))
