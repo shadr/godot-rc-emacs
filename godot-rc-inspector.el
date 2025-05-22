@@ -515,7 +515,8 @@
     (magit-insert-section (magit-section)
       (magit-insert-heading
         (make-string (* 2 (- (godot-rc--magit-section-depth magit-insert-section--current) 1)) ?\s)
-        (gethash "visible_name" data))
+        (gethash "visible_name" data)
+        (when (and (symbolp (gethash "value" data)) (eq :null (gethash "value" data))) " <empty>"))
       (godot-rc--magit-insert-section-body
        (gethash "value" data)
        (when children
