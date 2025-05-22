@@ -25,6 +25,7 @@
 ;; TODO: collapse groups by default, remember which groups were opened before refresh, before closing inspector
 ;; TODO: render script property outside of all categories
 ;; TODO: receive layers names and show them in minibuffer when hovering over a layer index
+;; TODO: merge category and grouping functions, accept optional 'insert-icon' argument
 
 (require 'magit-section)
 (require 'f)
@@ -194,9 +195,10 @@
      (lambda (data)
        (with-current-buffer (get-buffer "*inspector*")
 
-         (let ((p (point)))
+         (let ((p (point)) (wstart (window-start)))
            (godot-rc--inspector-insert-sections data godot-rc--inspector-object-id)
-           (goto-char p)))))))
+           (goto-char p)
+           (set-window-start (selected-window) wstart)))))))
 
 (defun godot-rc--open-inspector (object-id)
   (godot-rc--get-object-properties
@@ -527,14 +529,24 @@
 ;; (defun godot-rc--inspector-color-change ()
 ;;   (interactive))
 
+
 (defun godot-rc--inspector-insert-color-property (data object-id)
   (let* ((split
           (string-split
            (string-trim (gethash "value" data) "[()]" "[()]") ", "))
-         (r (nth 0 split)) (g (nth 1 split)) (b (nth 2 split)) (a (nth 3 split)))
+         (r (nth 0 split))
+         (g (nth 1 split))
+         (b (nth 2 split))
+         (a (nth 3 split))
+         (color-code (format "#%02x%02x%02x"
+                             (round (* (string-to-number r) 255))
+                             (round (* (string-to-number g) 255))
+                             (round (* (string-to-number b) 255)))))
     (godot-rc--inspector-simple-body
      data
      object-id
+
+     (insert (propertize "■ " 'face `(:foreground ,color-code)))
      (insert (propertize r 'face 'underline 'keymap
                          godot-rc--inspector-vector-component-keymap 'field 'r))
      (insert " ")
