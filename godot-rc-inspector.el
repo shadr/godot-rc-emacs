@@ -12,7 +12,6 @@
 ;;; Code:
 
 ;; TODO: perf: refresh single property on notification instead of whole buffer
-;; TODO: fix: VisualInstance3D don't have Layers property, because it is an integer property and has layers hint
 ;; TODO: smarter point restoration after refreshing buffer, currently point jumps if number of properties changes (changing Transform -> Rotation Edit Mode)
 ;; TODO: save path to inspected object as filepath/node/child-node..., currently refreshing inspector not working when scene is closed in godot
 ;; TODO: add keymap for the whole property text row instead of only value
@@ -25,6 +24,7 @@
 ;; TODO: store scene and node path, use them instead of object id for referencing properties
 ;; TODO: collapse groups by default, remember which groups were opened before refresh, before closing inspector
 ;; TODO: render script property outside of all categories
+;; TODO: receive layers names and show them in minibuffer when hovering over a layer index
 
 (require 'magit-section)
 (require 'f)
@@ -42,14 +42,14 @@
 (defconst godot-rc--variant-type-float 3) ; done
 (defconst godot-rc--variant-type-string 4) ; done
 (defconst godot-rc--variant-type-vector2 5) ; done
-(defconst godot-rc--variant-type-vector2i 6)
+(defconst godot-rc--variant-type-vector2i 6) ; done
 (defconst godot-rc--variant-type-rect2 7)
 (defconst godot-rc--variant-type-rect2i 8)
 (defconst godot-rc--variant-type-vector3 9) ; done
-(defconst godot-rc--variant-type-vector3i 10)
+(defconst godot-rc--variant-type-vector3i 10) ; done
 (defconst godot-rc--variant-type-transform2d 11)
 (defconst godot-rc--variant-type-vector4 12) ; done
-(defconst godot-rc--variant-type-vector4i 13)
+(defconst godot-rc--variant-type-vector4i 13) ; done
 (defconst godot-rc--variant-type-plane 14)
 (defconst godot-rc--variant-type-quaternion 15)
 (defconst godot-rc--variant-type-aabb 16)
@@ -60,7 +60,7 @@
 (defconst godot-rc--variant-type-string_name 21)
 (defconst godot-rc--variant-type-node_path 22)
 (defconst godot-rc--variant-type-rid 23)
-(defconst godot-rc--variant-type-object 24)
+(defconst godot-rc--variant-type-object 24) ; done
 (defconst godot-rc--variant-type-callable 25)
 (defconst godot-rc--variant-type-signal 26)
 (defconst godot-rc--variant-type-dictionary 27)
@@ -224,7 +224,6 @@
     (remove-overlays)
     (godot-rc--inspector-insert-sections-nested data object-id)))
 
-
 (defun godot-rc--inspector-insert-section (data object-id)
   (let* ((visible-name (gethash "visible_name" data))
          (children (gethash "children" data)))
@@ -348,7 +347,13 @@
     (pcase hint
       ((guard (eq hint godot-rc--property_hint_none)) (godot-rc--inspector-insert-int-number-property data object-id))
       ((guard (eq hint godot-rc--property_hint_range)) (godot-rc--inspector-insert-int-range-property data object-id))
-      ((guard (eq hint godot-rc--property_hint_enum)) (godot-rc--inspector-insert-int-enum-property data object-id)))))
+      ((guard (eq hint godot-rc--property_hint_enum)) (godot-rc--inspector-insert-int-enum-property data object-id))
+      ((guard (eq hint godot-rc--property_hint_layers_2d_render)) (godot-rc--inspector-insert-int-layers-property data object-id))
+      ((guard (eq hint godot-rc--property_hint_layers_2d_physics)) (godot-rc--inspector-insert-int-layers-property data object-id))
+      ((guard (eq hint godot-rc--property_hint_layers_2d_navigation)) (godot-rc--inspector-insert-int-layers-property data object-id))
+      ((guard (eq hint godot-rc--property_hint_layers_3d_render)) (godot-rc--inspector-insert-int-layers-property data object-id))
+      ((guard (eq hint godot-rc--property_hint_layers_3d_physics)) (godot-rc--inspector-insert-int-layers-property data object-id))
+      ((guard (eq hint godot-rc--property_hint_layers_3d_navigation)) (godot-rc--inspector-insert-int-layers-property data object-id)))))
 
 (godot-rc--define-simple-property int-number (number-to-string (gethash "value" data)) godot-rc--inspector-int-keymap)
 
@@ -395,6 +400,39 @@
                        'face 'underline
                        'keymap godot-rc--inspector-int-range-keymap))
    (insert "\n")))
+
+(defvar godot-rc--inspector-layers-component-keymap
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "c") #'godot-rc--inspector-layers-component-change)
+    map))
+
+(defun godot-rc--inspector-layers-component-change ()
+  (interactive)
+  (let* ((property-name (get-text-property (point) 'property-name))
+         (bit (get-text-property (point) 'bit))
+         (old-value (get-text-property (point) 'value))
+         (new-value (logxor old-value (ash 1 bit))))
+    (godot-rc--inspector-change-property-under-point new-value property-name)))
+
+(defun godot-rc--inspector-insert-layers-component (layers index)
+  (propertize (format "%2s" (number-to-string (+ index 1)))
+              'face `(:underline t :foreground ,(if (not (zerop (logand layers (ash 1 index)))) "white" "dim gray"))
+              'keymap godot-rc--inspector-layers-component-keymap
+              'bit index))
+
+(defun godot-rc--inspector-insert-int-layers-property (data object-id)
+  (let ((layers (gethash "value" data)))
+    (godot-rc--magit-insert-section-body
+     object-id
+     (godot-rc--inspector-insert-visible-name data)
+     (insert "\n")
+     (insert (make-string (* 2 (godot-rc--magit-section-depth magit-insert-section--current)) ?\s))
+     (cl-loop for i from 0 to 9
+              do (insert (godot-rc--inspector-insert-layers-component layers i) " "))
+     (insert "\n" (make-string (* 2 (godot-rc--magit-section-depth magit-insert-section--current)) ?\s))
+     (cl-loop for i from 10 to 19
+              do (insert (godot-rc--inspector-insert-layers-component layers i) " "))
+     (insert "\n"))))
 
 ;; (defvar godot-rc--inspector-vector3-keymap
 ;;   (let ((map (make-sparse-keymap)))
@@ -453,7 +491,6 @@
 (godot-rc--inspector-vector-definitions-macro vector2i vectori x y)
 (godot-rc--inspector-vector-definitions-macro vector3i vectori x y z)
 (godot-rc--inspector-vector-definitions-macro vector4i vectori x y z w)
-
 
 (defvar godot-rc--inspector-string-keymap
   (let ((map (make-sparse-keymap)))
