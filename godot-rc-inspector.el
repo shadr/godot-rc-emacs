@@ -53,7 +53,7 @@
 (defconst godot-rc--variant-type-vector4i 13) ; done
 (defconst godot-rc--variant-type-plane 14)
 (defconst godot-rc--variant-type-quaternion 15)
-(defconst godot-rc--variant-type-aabb 16)
+(defconst godot-rc--variant-type-aabb 16) ; done
 (defconst godot-rc--variant-type-basis 17)
 (defconst godot-rc--variant-type-transform3d 18)
 (defconst godot-rc--variant-type-projection 19)
@@ -279,6 +279,7 @@
       ((guard (eq type godot-rc--variant-type-string)) (godot-rc--inspector-insert-string-property data object-id))
       ((guard (eq type godot-rc--variant-type-color)) (godot-rc--inspector-insert-color-property data object-id))
       ((guard (eq type godot-rc--variant-type-object)) (godot-rc--inspector-insert-object-property data object-id))
+      ((guard (eq type godot-rc--variant-type-aabb)) (godot-rc--inspector-insert-aabb-property data object-id))
       (_ (godot-rc--inspector-insert-unsupported-property data object-id)))
     (when (eq start (point))
       (message (concat "warning: property " (gethash "property" data) " didn't show up in inspector, hint: " (number-to-string (gethash "hint" data)))))
@@ -571,6 +572,38 @@
        (when children
          (dolist (child children) (godot-rc--inspector-insert-section child object-id)))))
     (put-text-property start (point) 'type 'object)))
+
+(defun godot-rc--inspector-insert-aabb-property (data object-id)
+  (let* ((value (gethash "value" data))
+         (x (nth 0 value))
+         (y (nth 1 value))
+         (z (nth 2 value))
+         (w (nth 3 value))
+         (h (nth 4 value))
+         (d (nth 5 value)))
+    (godot-rc--inspector-simple-body
+     data
+     object-id
+     (insert "\n")
+     (insert (make-string (* 2 (godot-rc--magit-section-depth magit-insert-section--current)) ?\s))
+     (insert (propertize (number-to-string x) 'face 'underline 'keymap
+                         godot-rc--inspector-vector-component-keymap 'field 'position:x))
+     (insert " ")
+     (insert (propertize (number-to-string y) 'face 'underline 'keymap
+                         godot-rc--inspector-vector-component-keymap 'field 'position:y))
+     (insert " ")
+     (insert (propertize (number-to-string z) 'face 'underline 'keymap
+                         godot-rc--inspector-vector-component-keymap 'field 'position:z))
+     (insert "\n")
+     (insert (make-string (* 2 (godot-rc--magit-section-depth magit-insert-section--current)) ?\s))
+     (insert (propertize (number-to-string w) 'face 'underline 'keymap
+                         godot-rc--inspector-vector-component-keymap 'field 'size:x))
+     (insert " ")
+     (insert (propertize (number-to-string h) 'face 'underline 'keymap
+                         godot-rc--inspector-vector-component-keymap 'field 'size:y))
+     (insert " ")
+     (insert (propertize (number-to-string d) 'face 'underline 'keymap
+                         godot-rc--inspector-vector-component-keymap 'field 'size:z)))))
 
 (godot-rc--define-simple-property unsupported
                                   (concat "UNSUPPORTED"
