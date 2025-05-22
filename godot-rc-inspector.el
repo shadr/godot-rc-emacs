@@ -272,6 +272,9 @@
       ((guard (eq type godot-rc--variant-type-vector2)) (godot-rc--inspector-insert-vector2-property data object-id))
       ((guard (eq type godot-rc--variant-type-vector3)) (godot-rc--inspector-insert-vector3-property data object-id))
       ((guard (eq type godot-rc--variant-type-vector4)) (godot-rc--inspector-insert-vector4-property data object-id))
+      ((guard (eq type godot-rc--variant-type-vector2i)) (godot-rc--inspector-insert-vector2i-property data object-id))
+      ((guard (eq type godot-rc--variant-type-vector3i)) (godot-rc--inspector-insert-vector3i-property data object-id))
+      ((guard (eq type godot-rc--variant-type-vector4i)) (godot-rc--inspector-insert-vector4i-property data object-id))
       ((guard (eq type godot-rc--variant-type-string)) (godot-rc--inspector-insert-string-property data object-id))
       ((guard (eq type godot-rc--variant-type-color)) (godot-rc--inspector-insert-color-property data object-id))
       ((guard (eq type godot-rc--variant-type-object)) (godot-rc--inspector-insert-object-property data object-id))
@@ -412,8 +415,21 @@
          (new-value (read-number "New value: ")))
     (godot-rc--inspector-change-property-under-point new-value (list property-name field))))
 
-(defmacro godot-rc--inspector-vector-definitions-macro (name &rest fields)
-  (let ((fun-name (intern (format "godot-rc--inspector-insert-%s-property" name))))
+(defvar godot-rc--inspector-vectori-component-keymap
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "c") #'godot-rc--inspector-vectori-component-change)
+    map))
+
+(defun godot-rc--inspector-vectori-component-change ()
+  (interactive)
+  (let* ((property-name (get-text-property (point) 'property-name))
+         (field (get-text-property (point) 'field))
+         (new-value (read-number "New value: ")))
+    (godot-rc--inspector-change-property-under-point new-value (list property-name field))))
+
+(defmacro godot-rc--inspector-vector-definitions-macro (name component &rest fields)
+  (let ((fun-name (intern (format "godot-rc--inspector-insert-%s-property" name)))
+        (keymap-name (intern (format "godot-rc--inspector-%s-component-keymap" component))))
     `(defun ,fun-name (data object-id)
        (let* ((split (string-split (string-trim (gethash "value" data) "[\(\)]" "[\(\)]") ", "))
               ,@(cl-loop for field in fields
@@ -426,14 +442,18 @@
           ,@(cl-loop for field in fields
                      collect `(insert (propertize ,field
                                                   'face 'underline
-                                                  'keymap godot-rc--inspector-vector-component-keymap
+                                                  'keymap ,keymap-name
                                                   'field ',field))
                      collect `(insert " "))
           (insert "\n"))))))
 
-(godot-rc--inspector-vector-definitions-macro vector2 x y)
-(godot-rc--inspector-vector-definitions-macro vector3 x y z)
-(godot-rc--inspector-vector-definitions-macro vector4 x y z w)
+(godot-rc--inspector-vector-definitions-macro vector2 vector x y)
+(godot-rc--inspector-vector-definitions-macro vector3 vector x y z)
+(godot-rc--inspector-vector-definitions-macro vector4 vector x y z w)
+(godot-rc--inspector-vector-definitions-macro vector2i vectori x y)
+(godot-rc--inspector-vector-definitions-macro vector3i vectori x y z)
+(godot-rc--inspector-vector-definitions-macro vector4i vectori x y z w)
+
 
 (defvar godot-rc--inspector-string-keymap
   (let ((map (make-sparse-keymap)))
@@ -491,17 +511,16 @@
                          godot-rc--inspector-vector-component-keymap 'field 'a)))))
 
 (defun godot-rc--inspector-insert-object-property (data object-id)
-  (magit-insert-section (magit-section)
-    (let ((start (point)))
+  (let ((start (point)) (children (gethash "children" data)))
+    (magit-insert-section (magit-section)
       (magit-insert-heading
         (make-string (* 2 (- (godot-rc--magit-section-depth magit-insert-section--current) 1)) ?\s)
         (gethash "visible_name" data))
-      (put-text-property start (point) 'type 'object))
-    (let ((children (gethash "children" data)))
       (godot-rc--magit-insert-section-body
        (gethash "value" data)
        (when children
-         (dolist (child children) (godot-rc--inspector-insert-section child object-id)))))))
+         (dolist (child children) (godot-rc--inspector-insert-section child object-id)))))
+    (put-text-property start (point) 'type 'object)))
 
 (godot-rc--define-simple-property unsupported
                                   (concat "UNSUPPORTED"
